@@ -626,6 +626,7 @@ function App() {
     }
 
     addLog('Requesting USB device...', 'info');
+    addLog('(Check browser console for debug info)', 'info');
     try {
       const adb = new WebADB();
       const result = await adb.connect();
@@ -638,6 +639,7 @@ function App() {
       } else {
         setDeviceConnected(false);
         addLog('Connection failed: ' + result.error, 'error');
+        addLog('(Open browser DevTools > Console for details)', 'warn');
       }
     } catch (e) {
       setDeviceConnected(false);

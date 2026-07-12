@@ -1,6 +1,6 @@
 /**
  * WebADB - Run ADB commands directly from browser via WebUSB
- * Full ADB protocol with proper endpoint discovery
+ * Fixed endpoint discovery with debug
  */
 
 class WebADB {
@@ -17,42 +17,79 @@ class WebADB {
   async connect() {
     try {
       this.device = await navigator.usb.requestDevice({
-        filters: [
-          { classCode: 0xFF, subclassCode: 0x42, protocolCode: 0x01 },
-          { vendorId: 0x18D1 }
-        ]
+        filters: []
       });
 
       await this.device.open();
-      await this.device.selectConfiguration(1);
 
-      // Find ADB interface
-      let adbInterface = null;
-      for (const iface of this.device.configuration.interfaces) {
-        if (iface.alternate.interfaceClass === 0xFF) {
-          adbInterface = iface;
-          break;
+      // List all configurations and interfaces for debug
+      console.log('Configurations:', this.device.configurations.length);
+      for (const cfg of this.device.configurations) {
+        console.log('  Config', cfg.configurationValue, ':', cfg.interfaces.length, 'interfaces');
+        for (const iface of cfg.interfaces) {
+          for (const alt of iface.alternates) {
+            console.log('    Interface', iface.interfaceNumber, 'class:', alt.interfaceClass.toString(16));
+            for (const ep of alt.endpoints) {
+              console.log('      EP', ep.endpointNumber, ep.direction, ep.type, ep.packetSize);
+            }
+          }
         }
       }
 
-      if (!adbInterface) {
-        throw new Error('No ADB interface found');
+      // Select config
+      const config = this.device.configurations[0];
+      await this.device.selectConfiguration(config.configurationValue);
+
+      // Find first interface with endpoints
+      let targetIface = null;
+      for (const iface of config.interfaces) {
+        for (const alt of iface.alternates) {
+          if (alt.endpoints.length >= 2) {
+            targetIface = iface;
+            break;
+          }
+        }
+        if (targetIface) break;
       }
 
-      await this.device.claimInterface(adbInterface.interfaceNumber);
+      if (!targetIface) {
+        // Fallback: use first interface
+        targetIface = config.interfaces[0];
+      }
 
-      // Find endpoints
-      const alt = adbInterface.alternate;
+      const ifaceNum = targetIface.interfaceNumber;
+      await this.device.claimInterface(ifaceNum);
+
+      // Get endpoints from claimed interface
+      const iface = this.device.configuration.interfaces[ifaceNum];
+      const alt = iface.alternate;
+
+      this.epOut = null;
+      this.epIn = null;
+
       for (const ep of alt.endpoints) {
-        if (ep.direction === 'out') {
+        if (ep.direction === 'out' && ep.type === 'bulk') {
           this.epOut = ep.endpointNumber;
-        } else if (ep.direction === 'in') {
+        } else if (ep.direction === 'in' && ep.type === 'bulk') {
           this.epIn = ep.endpointNumber;
         }
       }
 
+      // Fallback: use any endpoints
+      if (!this.epOut || !this.epIn) {
+        for (const ep of alt.endpoints) {
+          if (ep.direction === 'out' && !this.epOut) {
+            this.epOut = ep.endpointNumber;
+          } else if (ep.direction === 'in' && !this.epIn) {
+            this.epIn = ep.endpointNumber;
+          }
+        }
+      }
+
+      console.log('Using EP OUT:', this.epOut, 'EP IN:', this.epIn);
+
       if (this.epOut === null || this.epIn === null) {
-        throw new Error('Could not find ADB endpoints');
+        throw new Error('No suitable endpoints found. Available: ' + alt.endpoints.length);
       }
 
       // ADB Version exchange
@@ -85,8 +122,6 @@ class WebADB {
     }
     this.connected = false;
     this.device = null;
-    this.epOut = null;
-    this.epIn = null;
   }
 
   async shellCommand(command) {
