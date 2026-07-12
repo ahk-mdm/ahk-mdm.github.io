@@ -1343,6 +1343,18 @@ function App() {
             </div>
           </Section>
 
+          {adbLog.length > 0 && (
+            <Section title="ADB Output" icon="&#128196;">
+              <div className="log-box" ref={logRef}>
+                {adbLog.map((log, i) => (
+                  <div key={i} className={'log-line ' + log.type}>
+                    [{log.time}] {log.msg}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section title="MDM/Bloatware Package List" icon="&#128230;" collapsible defaultOpen={false}>
             <table className="summary-table">
               <thead><tr><th>Label</th><th>Package</th></tr></thead>
@@ -1392,18 +1404,6 @@ function App() {
               </div>
             </div>
           </Section>
-
-          {adbLog.length > 0 && (
-            <Section title="ADB Output" icon="&#128196;">
-              <div className="log-box" ref={logRef}>
-                {adbLog.map((log, i) => (
-                  <div key={i} className={'log-line ' + log.type}>
-                    [{log.time}] {log.msg}
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
         </div>
       )}
 
