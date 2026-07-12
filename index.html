@@ -891,11 +891,11 @@ function App() {
   if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
     plan.push({ name: 'PROINFO -- license/lock section', size: '2 KB' });
     plan.push({ name: 'PROINFO -- RSA blobs', size: '~3.5 KB' });
-    plan.push({ name: 'PROINFO -- HW flags', size: '2 bytes (chip variant, isGslb)' });
+    plan.push({ name: 'PROINFO -- HW flags', size: '2 bytes' });
   }
   if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
     for (const t of per.targets)
-      plan.push({ name: 'PERSIST -- ' + t.name, size: t.total.toLocaleString() + ' bytes @ 0x' + t.offset.toString(16).toUpperCase() });
+      plan.push({ name: 'PERSIST -- ' + t.name, size: t.total.toLocaleString() + ' bytes' });
   }
 
   const bothLoaded = pro && per;
@@ -1167,14 +1167,6 @@ function App() {
                       <div key={i} style={{marginBottom:14,padding:12,background:isT?'rgba(255,107,107,0.08)':'var(--bg)',borderRadius:8}}>
                         <KV label="Name" value={obj.name} cls={isT?'expired':''} />
                         <KV label="Payload" value={obj.plen + ' bytes'} />
-                        <details>
-                          <summary style={{cursor:'pointer',color:'var(--cyan)',fontSize:'0.8rem',marginTop:6}}>Header hex</summary>
-                          <HexDump data={obj.header} limit={64} />
-                        </details>
-                        <details>
-                          <summary style={{cursor:'pointer',color:'var(--cyan)',fontSize:'0.8rem',marginTop:6}}>Payload hex</summary>
-                          <HexDump data={obj.payload} limit={96} />
-                        </details>
                       </div>
                     );
                   })}
