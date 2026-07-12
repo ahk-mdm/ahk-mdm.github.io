@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Techno/Infinix/Itel MDM Patch</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="webadb.js"></script>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a25;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text2: #8888a0;
+  --accent: #6c5ce7;
+  --accent2: #a29bfe;
+  --green: #00d2a0;
+  --red: #ff6b6b;
+  --yellow: #ffd93d;
+  --cyan: #00cec9;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+.app { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+.header { text-align: center; padding: 32px 0 24px; }
+.header h1 {
+  font-size: 1.6rem; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+.header p { color: var(--text2); font-size: 0.8rem; }
+.header a { color: var(--cyan); text-decoration: none; }
+.header a:hover { text-decoration: underline; }
+
+.upload-list {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 20px;
+}
+.upload-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  transition: all 0.3s;
+}
+.upload-row.dragover { border-color: var(--accent); background: rgba(108,92,231,0.08); }
+.upload-row.loaded { border-color: var(--green); background: rgba(0,210,160,0.05); }
+.upload-row .label {
+  font-weight: 600; font-size: 0.85rem; min-width: 90px;
+  display: flex; align-items: center; gap: 6px;
+}
+.upload-row .label .dot { width: 8px; height: 8px; border-radius: 50%; }
+.upload-row .label .dot.pro { background: var(--accent); }
+.upload-row .label .dot.per { background: var(--cyan); }
+.upload-row .drop-area {
+  flex: 1; border: 1px dashed var(--border); border-radius: 8px;
+  padding: 10px 16px; text-align: center; cursor: pointer;
+  font-size: 0.8rem; color: var(--text2); transition: all 0.2s;
+  position: relative;
+}
+.upload-row .drop-area:hover { border-color: var(--accent); color: var(--text); }
+.upload-row .drop-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-row .file-info { flex: 1; font-size: 0.82rem; }
+.upload-row .file-info .fname { color: var(--green); font-weight: 600; word-break: break-all; }
+.upload-row .file-info .fmeta { color: var(--text2); font-size: 0.75rem; }
+.upload-row .remove-btn {
+  background: none; border: none; color: var(--text2);
+  cursor: pointer; font-size: 1.1rem; padding: 4px;
+}
+.upload-row .remove-btn:hover { color: var(--red); }
+
+.error-banner {
+  background: rgba(255,107,107,0.1);
+  border: 1px solid rgba(255,107,107,0.3);
+  border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 16px;
+  display: flex; align-items: flex-start; gap: 12px;
+  font-size: 0.85rem;
+}
+.error-banner .eicon { font-size: 1.4rem; flex-shrink: 0; }
+.error-banner .emsg strong { color: var(--red); }
+.error-banner .edetail { color: var(--text2); font-size: 0.78rem; margin-top: 4px; }
+
+.match-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 6px;
+  font-size: 0.78rem; font-weight: 600; margin-bottom: 16px;
+}
+.match-badge.ok { background: rgba(0,210,160,0.15); color: var(--green); }
+.match-badge.error { background: rgba(255,107,107,0.15); color: var(--red); }
+
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 16px;
+  background: var(--surface); border-radius: var(--radius);
+  padding: 4px; border: 1px solid var(--border);
+}
+.tab {
+  flex: 1; padding: 9px 16px; background: none; border: none;
+  color: var(--text2); cursor: pointer; border-radius: 8px;
+  font-family: inherit; font-size: 0.85rem; font-weight: 500;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text); background: var(--surface2); }
+.tab.active { background: var(--accent); color: white; }
+
+.section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 14px; overflow: hidden;
+}
+.section-header {
+  padding: 11px 14px; font-weight: 600; font-size: 0.85rem;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none; background: var(--surface2);
+}
+.section-header:hover { background: rgba(108,92,231,0.1); }
+.section-header .arrow { transition: transform 0.2s; font-size: 0.7rem; }
+.section-header .arrow.open { transform: rotate(90deg); }
+.section-body { padding: 14px; }
+
+.kv-row {
+  display: flex; padding: 5px 0;
+  border-bottom: 1px solid rgba(42,42,58,0.5); font-size: 0.82rem;
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-key { width: 150px; color: var(--cyan); flex-shrink: 0; }
+.kv-val { flex: 1; word-break: break-all; }
+.kv-val.expired { color: var(--red); }
+.kv-val.ok { color: var(--green); }
+.kv-val.warn { color: var(--yellow); }
+
+.hex-dump {
+  background: var(--bg); border-radius: 8px; padding: 10px;
+  font-size: 0.72rem; overflow-x: auto; max-height: 280px;
+  overflow-y: auto; line-height: 1.5;
+}
+.hex-line { display: flex; gap: 8px; }
+.hex-addr { color: var(--text2); min-width: 75px; }
+.hex-bytes { color: var(--text); }
+.hex-ascii { color: var(--text2); min-width: 110px; }
+
+.btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.btn {
+  padding: 9px 18px; border: none; border-radius: 8px;
+  font-family: inherit; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-danger { background: rgba(255,107,107,0.15); color: var(--red); border: 1px solid rgba(255,107,107,0.3); }
+.btn-danger:hover { background: rgba(255,107,107,0.25); }
+.btn-outline { background: none; color: var(--text2); border: 1px solid var(--border); }
+.btn-outline:hover { border-color: var(--text2); color: var(--text); }
+.btn-success { background: rgba(0,210,160,0.15); color: var(--green); border: 1px solid rgba(0,210,160,0.3); }
+.btn-success:hover { background: rgba(0,210,160,0.25); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.summary-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.summary-table th {
+  text-align: left; padding: 7px 10px; color: var(--text2);
+  border-bottom: 1px solid var(--border); font-weight: 500;
+}
+.summary-table td { padding: 7px 10px; border-bottom: 1px solid rgba(42,42,58,0.3); }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+.empty-state .icon { font-size: 2rem; margin-bottom: 10px; }
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  max-width: 440px; width: 90%;
+}
+.modal h3 { margin-bottom: 10px; font-size: 1.1rem; }
+.modal p { color: var(--text2); font-size: 0.85rem; margin-bottom: 14px; }
+.modal .plan { background: var(--bg); border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 0.8rem; }
+.modal .plan-item { display: flex; justify-content: space-between; padding: 4px 0; }
+.modal .plan-item .label { color: var(--cyan); }
+
+.log-box {
+  background: var(--bg); border-radius: 8px; padding: 12px;
+  font-size: 0.75rem; max-height: 300px; overflow-y: auto;
+  line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+}
+.log-line { margin-bottom: 2px; }
+.log-line.info { color: var(--cyan); }
+.log-line.ok { color: var(--green); }
+.log-line.error { color: var(--red); }
+.log-line.warn { color: var(--yellow); }
+
+.device-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; background: var(--bg); border-radius: 8px;
+  margin-bottom: 14px; font-size: 0.82rem;
+}
+.device-status .dot { width: 10px; height: 10px; border-radius: 50%; }
+.device-status .dot.connected { background: var(--green); animation: pulse 2s infinite; }
+.device-status .dot.disconnected { background: var(--red); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.code-block {
+  background: var(--bg); border-radius: 8px; padding: 12px;
+  font-size: 0.72rem; overflow-x: auto; line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useRef, useEffect } = React;
+
+const ANTI_RELOCK_TARGETS = [
+  { label: "Dynamic System Updates", pkgs: ["com.android.dynsystem"] },
+  { label: "MmsService", pkgs: ["com.android.mms.service"] },
+  { label: "Work Setup", pkgs: ["com.android.managedprovisioning"] },
+  { label: "MTK Geofence", pkgs: ["com.mediatek.location.mtkgeofence","com.mediatek.lbs.em2.ui","com.mediatek.geofence"] },
+  { label: "MTK Non-Framework LBS", pkgs: ["com.mediatek.gnss.nonframeworklbs","com.mediatek.lbs","com.mediatek.lbs.em2","com.mediatek.nonframeworklbs"] },
+  { label: "Omacp", pkgs: ["com.mediatek.omacp"] },
+  { label: "LPPe Service", pkgs: ["com.mediatek.location.lppe.main","com.mediatek.lppe","com.qualcomm.location.lppe"] },
+  { label: "SimProcessor", pkgs: ["com.mediatek.simprocessor","com.transsion.simprocessor","com.itel.simprocessor"] },
+  { label: "App Update", pkgs: ["com.transsion.plat.appupdate","com.transsion.appupdate","com.itel.appupdate"] },
+  { label: "Cloud Service", pkgs: ["com.transsion.cloudserver","com.transsion.cloudservice","com.itel.cloudservice"] },
+  { label: "DeviceDiagnostics", pkgs: ["com.android.devicediagnostics","com.transsion.devicediagnostics"] },
+  { label: "EtalaseApps", pkgs: ["id.mjs.etalaseapp","com.transsion.etalaseapps"] },
+  { label: "E-Warranty Card", pkgs: ["com.transsion.repaircard","com.transsion.warrantycard"] },
+  { label: "GENIEX", pkgs: ["com.geniex","com.transsion.geniex"] },
+  { label: "GENIEX Service", pkgs: ["com.transtech.geniex","com.geniex.service"] },
+  { label: "MDMConfig", pkgs: ["com.mediatek.mdmconfig","com.transsion.mdmconfig","com.itel.mdmconfig"] },
+  { label: "MDMLSample", pkgs: ["com.transsion.mdmlsample","com.itel.mdmlsample","com.mediatek.mdmlsample"] },
+  { label: "Mobile Device Info", pkgs: ["com.transsion.deviceinfoprovider","com.itel.deviceinfoprovider"] },
+  { label: "Palm Store", pkgs: ["com.transsnet.store","net.bat.store","com.transsion.palmstore"] },
+  { label: "PalmPay", pkgs: ["com.transsnet.palmpay","com.palmpay.android","com.palmpay"] },
+  { label: "ProxyHandler", pkgs: ["com.android.proxyhandler","com.transsion.proxyhandler"] },
+  { label: "SalesStatistics", pkgs: ["com.transsion.statisticalsales","com.transsion.salesstatistics"] },
+  { label: "SRU", pkgs: ["com.transsion.sru","com.itel.sru"] },
+  { label: "AIService", pkgs: ["com.transsion.kolun.aiservice","com.transsion.aiservice"] },
+  { label: "System Update", pkgs: ["com.transsion.ota","com.itel.ota","com.transsion.systemupdate"] },
+  { label: "AHA Games", pkgs: ["com.ahamoment.games","com.transsion.ahagames"] },
+];
+
+function readCstr(data, offset, maxLen = 256) {
+  const chunk = data.slice(offset, offset + maxLen);
+  const end = chunk.indexOf(0);
+  return new TextDecoder().decode(end !== -1 ? chunk.slice(0, end) : chunk).trim();
+}
+function decodeTs(val) {
+  const v = parseInt(val);
+  if (v > 1600000000 && v < 2100000000) return new Date(v * 1000);
+  return null;
+}
+function fmtDate(dt) {
+  if (!dt) return '(not set)';
+  return dt.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function expiryLabel(tsStr) {
+  const dt = decodeTs(tsStr);
+  if (!dt) return { text: '(not set)', cls: '' };
+  const days = Math.floor((dt - Date.now()) / 86400000);
+  if (days < 0) return { text: fmtDate(dt) + ' -- EXPIRED ' + Math.abs(days) + 'd ago', cls: 'expired' };
+  return { text: fmtDate(dt) + ' -- ' + days + 'd remaining', cls: 'ok' };
+}
+function lockLabel(s) {
+  if (!s) return { text: '(not set)', cls: '' };
+  const sl = s.toLowerCase();
+  if (sl.includes('active_and_lock')) return { text: s, cls: 'expired' };
+  if (sl.includes('removable')) return { text: s, cls: 'ok' };
+  if (sl.includes('active')) return { text: s, cls: 'warn' };
+  return { text: s, cls: '' };
+}
+function toHex(data, offset, limit = 96) {
+  const lines = [];
+  for (let i = 0; i < Math.min(data.length, limit); i += 16) {
+    const chunk = data.slice(offset + i, offset + i + 16);
+    const hex = Array.from(chunk).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    const asc = Array.from(chunk).map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('');
+    lines.push({ addr: (offset + i).toString(16).padStart(8, '0'), hex, asc });
+  }
+  return lines;
+}
+function quickHash(data) {
+  let h = 0;
+  for (let i = 0; i < Math.min(data.length, 8192); i++) h = ((h << 5) - h + data[i]) | 0;
+  return Math.abs(h).toString(16).padStart(8, '0');
+}
+function fmtTimestamp() {
+  const d = new Date();
+  return d.getFullYear().toString() +
+    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getDate()).padStart(2,'0') + '_' +
+    String(d.getHours()).padStart(2,'0') +
+    String(d.getMinutes()).padStart(2,'0') +
+    String(d.getSeconds()).padStart(2,'0');
+}
+
+function extractProinfoId(data) {
+  return {
+    serial: readCstr(data, 0, 16),
+    regionId: data.length > 0x2A00D4 ? readCstr(data.slice(0x2A0000), 0x00B4, 32) : '',
+    appPkg: data.length > 0x2A0160 ? readCstr(data.slice(0x2A0000), 0x00DE, 64) : '',
+    model: readCstr(data, 0, 16).split('_')[0] || readCstr(data, 0, 16),
+  };
+}
+function searchBytes(haystack, needle) {
+  for (let i = 0; i <= haystack.length - needle.length; i++) {
+    let ok = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i+j] !== needle[j]) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+function checkDeviceMatch(proData, perData) {
+  const proId = extractProinfoId(proData);
+  const enc = new TextEncoder();
+  if (proId.serial.length > 4) {
+    if (searchBytes(perData, enc.encode(proId.serial)))
+      return { match: true, method: 'serial', value: proId.serial };
+  }
+  if (proId.regionId.length > 6) {
+    if (searchBytes(perData, enc.encode(proId.regionId)))
+      return { match: true, method: 'regionId', value: proId.regionId };
+  }
+  if (proId.appPkg.length > 6) {
+    if (searchBytes(perData, enc.encode(proId.appPkg)))
+      return { match: true, method: 'appPackage', value: proId.appPkg };
+  }
+  return { match: false };
+}
+
+function detectType(data) {
+  if (data.length > 0x2A0040) {
+    const s = readCstr(data.slice(0x2A0000), 0x0020, 32);
+    if (s && ['active','removable','active_and_lock'].some(x => s.toLowerCase().includes(x))) return 'proinfo';
+  }
+  if (data.length > 0x22020C) {
+    const b2 = data.slice(0x22020C, 0x22021C);
+    if (Array.from(b2).every(b => b===0||(b>=32&&b<127)) && b2.some(b => b!==0)) return 'proinfo';
+  }
+  if (data.length > 0x440 && data[0x438]===0x53 && data[0x439]===0xef) return 'persist';
+  if (data.length > 10000000) return 'persist';
+  return 'unknown';
+}
+
+function parseProinfo(data) {
+  if (data.length < 0x2A0800) return null;
+  const s = data.slice(0x2A0000, 0x2A0800);
+  const g = (o, l) => readCstr(s, o, l);
+  const blobs = [
+    [0x220004,"RSA blob 1","Primary auth token"],
+    [0x22020c,"RSA blob 2","Secondary auth token"],
+    [0x2605e5,"RSA blob 3","Cert chain part 1"],
+    [0x260626,"RSA blob 4","Cert chain part 2"],
+  ].map(([o,n,r]) => {
+    const c = readCstr(data, o, 512);
+    return { offset:o, name:n, role:r, size: c.length>8 ? Math.floor(c.length*3/4) : 0 };
+  }).filter(b => b.size > 0);
+  const entries = [];
+  for (let i = 0; i < 30; i++) {
+    const eo = 0x100000+i*0x20, ch = data.slice(eo, eo+0x20);
+    if (ch.every(b => b===0)) continue;
+    const ts = new DataView(ch.buffer, ch.byteOffset, 4).getUint32(0, true);
+    const tag = readCstr(ch, 6, 10);
+    if (ts===0 && !tag) continue;
+    entries.push({ idx:ch[4], tag, ts, dt: decodeTs(ts), offset:eo });
+  }
+  return {
+    label: readCstr(data,0,16), lockCode:g(0x0004), tsStart:g(0x0010),
+    lockStatus:g(0x0020), tsExpiry:g(0x0048), grace:g(0x009a), retry:g(0x00a2),
+    validity:g(0x00ac), regionId:g(0x00b4), appPkg:g(0x00de), appClass:g(0x0106),
+    appVer:g(0x014e), internalId:g(0x0617), buildHash:g(0x076d), blobs, entries,
+    size: data.length,
+  };
+}
+
+const TEE_HDR = new Uint8Array([1,0,0,0,2,0,2,0,1,0,0,0,0,0,0,0,0xfe,0xff,0xff,0xff]);
+const TGT_UUID = new Uint8Array([0xdf,0x1e,0xdd,0xa8,0x62,0x79,0x11,0xe9,0x80,0xae,0x50,0x7b,0x9d,0x9a,0x7e,0x7d]);
+const TEE_NAMES = {97:'hmac_key',279:'rsa_pub',1175:'rsa_priv',256:'reg_info'};
+const PAYTARGETS = new Set(['hmac_key','rsa_priv','rsa_pub','reg_info']);
+
+function findPaytrigger(data) {
+  const hits = [];
+  let start = 0;
+  while (true) {
+    let p = -1;
+    for (let i = start; i < data.length - 44; i++) {
+      let ok = true;
+      for (let j = 0; j < 20; j++) { if (data[i+j] !== TEE_HDR[j]) { ok=false; break; } }
+      if (ok) { p = i; break; }
+    }
+    if (p === -1) break;
+    const dv = new DataView(data.buffer, data.byteOffset+p, 44);
+    if (dv.getUint32(36,true) !== 0) { start=p+1; continue; }
+    const uuid = data.slice(p+20, p+36);
+    let um = true;
+    for (let j=0;j<16;j++) { if (uuid[j]!==TGT_UUID[j]) { um=false; break; } }
+    if (!um) { start=p+1; continue; }
+    const plen = dv.getUint32(40, true);
+    if (plen<1||plen>1000000) { start=p+1; continue; }
+    hits.push({
+      offset:p, total:44+plen+48, name: TEE_NAMES[plen] || ('tee_' + plen),
+      header:data.slice(p,p+44), payload:data.slice(p+44,p+44+plen), plen
+    });
+    start = p+1;
+  }
+  return hits;
+}
+function parsePersist(data) {
+  let ext4 = null;
+  if (data.length>0x440 && data[0x438]===0x53 && data[0x439]===0xef) {
+    ext4 = {
+      volume: readCstr(data,1024+120,16) || '<none>',
+      mounted: readCstr(data,1024+136,64) || '<none>'
+    };
+  }
+  const objects = findPaytrigger(data);
+  return { ext4, objects, targets: objects.filter(o => PAYTARGETS.has(o.name)), size: data.length };
+}
+
+function cleanProinfo(data) {
+  const d = new Uint8Array(data);
+  const z = (a,b) => { for(let i=a;i<b;i++) d[i]=0; };
+  z(0x2A0000,0x2A0800); z(0x220004,0x22015C); z(0x220200,0x22020A);
+  z(0x22020C,0x220364); z(0x2203C0,0x220400);
+  d[0x2C0010]=0x66; d[0x2C00AA]=0x00;
+  return d;
+}
+function cleanPersist(data, targets) {
+  const d = new Uint8Array(data);
+  for (const t of targets) for (let i=t.offset;i<t.offset+t.total;i++) d[i]=0;
+  return d;
+}
+
+function HexDump({ data, offset=0, limit=96 }) {
+  return (
+    <div className="hex-dump">
+      {toHex(data,offset,limit).map((l,i) => (
+        <div key={i} className="hex-line">
+          <span className="hex-addr">{l.addr}</span>
+          <span className="hex-bytes">{l.hex}</span>
+          <span className="hex-ascii">{l.asc}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function KV({ label, value, cls='' }) {
+  return <div className="kv-row"><span className="kv-key">{label}</span><span className={'kv-val ' + cls}>{value||'(not set)'}</span></div>;
+}
+function Section({ title, icon, children, defaultOpen=true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="section">
+      <div className="section-header" onClick={()=>setOpen(!open)}>
+        <span className={'arrow ' + (open?'open':'')}>&#9654;</span>
+        <span>{icon}</span> {title}
+      </div>
+      {open && <div className="section-body">{children}</div>}
+    </div>
+  );
+}
+function ConfirmModal({ plan, onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>Confirm Patch</h3>
+        <p>This will erase sensitive data. A patched file will be downloaded.</p>
+        <div className="plan">
+          {plan.map((item,i) => (
+            <div key={i} className="plan-item"><span className="label">{item.name}</span><span>{item.size}</span></div>
+          ))}
+        </div>
+        <div className="btn-row">
+          <button className="btn btn-danger" onClick={onConfirm}>Patch &amp; Download</button>
+          <button className="btn btn-outline" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [proFile, setProFile] = useState(null);
+  const [perFile, setPerFile] = useState(null);
+  const [activeTab, setActiveTab] = useState('guide');
+  const [showModal, setShowModal] = useState(false);
+  const [cleanTarget, setCleanTarget] = useState(null);
+  const [deviceMatch, setDeviceMatch] = useState(null);
+  const [deviceConnected, setDeviceConnected] = useState(false);
+  const [deviceSerial, setDeviceSerial] = useState('');
+  const [adbLog, setAdbLog] = useState([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [webUsbSupported, setWebUsbSupported] = useState(true);
+  const logRef = useRef(null);
+  const adbRef = useRef(null);
+
+  const pro = proFile ? Object.assign({}, parseProinfo(proFile.data), { fileName: proFile.name, raw: proFile.data }) : null;
+  const per = perFile ? Object.assign({}, parsePersist(perFile.data), { fileName: perFile.name, raw: perFile.data }) : null;
+
+  useEffect(() => {
+    if (!navigator.usb) {
+      setWebUsbSupported(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (proFile && perFile) {
+      setDeviceMatch(checkDeviceMatch(proFile.data, perFile.data));
+    } else {
+      setDeviceMatch(null);
+    }
+  }, [proFile, perFile]);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [adbLog]);
+
+  const addLog = useCallback((msg, type='info') => {
+    setAdbLog(prev => [...prev, { msg, type, time: new Date().toLocaleTimeString() }]);
+  }, []);
+
+  const connectDevice = useCallback(async () => {
+    if (!navigator.usb) {
+      addLog('WebUSB not supported. Use Chrome/Edge browser.', 'error');
+      return;
+    }
+
+    addLog('Requesting USB device...', 'info');
+    try {
+      const adb = new WebADB();
+      const result = await adb.connect();
+
+      if (result.success) {
+        adbRef.current = adb;
+        setDeviceConnected(true);
+        setDeviceSerial(result.serial);
+        addLog('Device connected: ' + result.serial, 'ok');
+      } else {
+        setDeviceConnected(false);
+        addLog('Connection failed: ' + result.error, 'error');
+      }
+    } catch (e) {
+      setDeviceConnected(false);
+      addLog('Error: ' + e.message, 'error');
+    }
+  }, [addLog]);
+
+  const disconnectDevice = useCallback(() => {
+    if (adbRef.current) {
+      adbRef.current.disconnect();
+      adbRef.current = null;
+    }
+    setDeviceConnected(false);
+    setDeviceSerial('');
+    addLog('Device disconnected', 'warn');
+  }, [addLog]);
+
+  const runShellCommand = useCallback(async (command) => {
+    if (!adbRef.current) {
+      addLog('No device connected', 'error');
+      return null;
+    }
+
+    addLog('> ' + command, 'info');
+    try {
+      const result = await adbRef.current.shellCommand(command);
+      if (result) addLog(result, 'ok');
+      return result;
+    } catch (e) {
+      addLog('Error: ' + e.message, 'error');
+      return null;
+    }
+  }, [addLog]);
+
+  const runAntiRelock = useCallback(async () => {
+    if (!deviceConnected) {
+      addLog('Connect a device first', 'error');
+      return;
+    }
+
+    const dnsServer = prompt('Enter DNS address (e.g., dns.adguard.com or 1.1.1.1):', 'dns.adguard.com');
+    if (!dnsServer) {
+      addLog('DNS setup cancelled', 'warn');
+      return;
+    }
+
+    setIsRunning(true);
+    addLog('=== Starting Final Patch ===', 'info');
+
+    addLog('[1/3] Setting Private DNS to: ' + dnsServer, 'info');
+    await runShellCommand('settings put global private_dns_mode hostname');
+    await runShellCommand('settings put global private_dns_specifier ' + dnsServer);
+
+    addLog('[2/3] Installing PatchedSecurityCom APK...', 'info');
+    await runShellCommand('pm install -r -d /sdcard/Download/PatchedSecurityCom.apk');
+
+    addLog('[3/3] Uninstalling MDM/bloatware packages...', 'info');
+    const pkgs = ANTI_RELOCK_TARGETS.map(t => t.pkgs[0]);
+    for (const pkg of pkgs) {
+      await runShellCommand('pm uninstall --user 0 ' + pkg);
+    }
+
+    addLog('=== Final Patch Complete! Reboot device ===', 'ok');
+    setIsRunning(false);
+  }, [deviceConnected, addLog, runShellCommand]);
+
+  const handleFile = useCallback((file, slot) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = new Uint8Array(reader.result);
+      const type = detectType(data);
+      const entry = { name: file.name, data, type, size: data.length };
+      if (slot === 'proinfo') setProFile(entry);
+      else setPerFile(entry);
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const handleDrop = useCallback((e, slot) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0], slot);
+  }, [handleFile]);
+
+  const removeFile = useCallback((slot) => {
+    if (slot === 'proinfo') setProFile(null);
+    else setPerFile(null);
+  }, []);
+
+  const handleClean = useCallback((target) => {
+    setCleanTarget(target);
+    setShowModal(true);
+  }, []);
+
+  const doClean = useCallback(() => {
+    if (!cleanTarget) return;
+    const ts = fmtTimestamp();
+    const model = pro ? pro.label.replace(/[^a-zA-Z0-9]/g,'').substring(0,20) : 'device';
+    const downloads = [];
+    if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
+      downloads.push({ data: cleanProinfo(pro.raw), name: 'proinfo_' + model + '_patched_' + ts + '.bin' });
+    }
+    if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
+      downloads.push({ data: cleanPersist(per.raw, per.targets), name: 'persist_' + model + '_patched_' + ts + '.img' });
+    }
+    for (const d of downloads) {
+      const blob = new Blob([d.data], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = d.name;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    setShowModal(false);
+    setCleanTarget(null);
+  }, [cleanTarget, pro, per]);
+
+  const plan = [];
+  if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
+    plan.push({ name: 'PROINFO -- license/lock section', size: '2 KB (0x2A0000-0x2A0800)' });
+    plan.push({ name: 'PROINFO -- RSA blobs', size: '~3.5 KB (0x220000-0x220400)' });
+    plan.push({ name: 'PROINFO -- HW flags', size: '2 bytes (chip variant, isGslb)' });
+  }
+  if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
+    for (const t of per.targets)
+      plan.push({ name: 'PERSIST -- ' + t.name, size: t.total.toLocaleString() + ' bytes @ 0x' + t.offset.toString(16).toUpperCase() });
+  }
+
+  const bothLoaded = pro && per;
+  const showMismatch = bothLoaded && deviceMatch && !deviceMatch.match;
+
+  return (
+    <div className="app">
+      <div className="header">
+        <h1>Techno / Infinix / Itel MDM Patch</h1>
+        <p>New MDM bypass Method Support Android 15/16 implement by <a href="https://www.facebook.com/ahkphonerepair" target="_blank">AHK Phone Repair</a></p>
+      </div>
+
+      <div className="tabs">
+        <button className={'tab ' + (activeTab==='guide'?'active':'')} onClick={()=>setActiveTab('guide')}>
+          Guide
+        </button>
+        <button className={'tab ' + (activeTab==='step1'?'active':'')} onClick={()=>setActiveTab('step1')}>
+          Step 1 {(pro || per) && '\u2713'}
+        </button>
+        <button className={'tab ' + (activeTab==='antirelock'?'active':'')} onClick={()=>setActiveTab('antirelock')}>
+          Step 2
+        </button>
+      </div>
+
+      {/* Upload list - only on Step 1 tab */}
+      {activeTab==='step1' && (
+        <div className="upload-list">
+          <div
+            className={'upload-row ' + (pro ? 'loaded' : '')}
+            onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add('dragover');}}
+            onDragLeave={e=>e.currentTarget.classList.remove('dragover')}
+            onDrop={e=>handleDrop(e,'proinfo')}
+          >
+            <div className="label"><span className="dot pro"></span> PROINFO</div>
+            {pro ? (
+              <React.Fragment>
+                <div className="file-info">
+                  <div className="fname">{pro.name}</div>
+                  <div className="fmeta">{(pro.size/1024/1024).toFixed(2)} MB -- {quickHash(pro.raw)}</div>
+                </div>
+                <button className="remove-btn" onClick={()=>removeFile('proinfo')}>&#10005;</button>
+              </React.Fragment>
+            ) : (
+              <div className="drop-area">
+                Drop proinfo.bin or click to browse
+                <input type="file" onChange={e=>e.target.files[0]&&handleFile(e.target.files[0],'proinfo')} />
+              </div>
+            )}
+          </div>
+
+          <div
+            className={'upload-row ' + (per ? 'loaded' : '')}
+            onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add('dragover');}}
+            onDragLeave={e=>e.currentTarget.classList.remove('dragover')}
+            onDrop={e=>handleDrop(e,'persist')}
+          >
+            <div className="label"><span className="dot per"></span> PERSIST</div>
+            {per ? (
+              <React.Fragment>
+                <div className="file-info">
+                  <div className="fname">{per.name}</div>
+                  <div className="fmeta">{(per.size/1024/1024).toFixed(2)} MB -- {quickHash(per.raw)}</div>
+                </div>
+                <button className="remove-btn" onClick={()=>removeFile('persist')}>&#10005;</button>
+              </React.Fragment>
+            ) : (
+              <div className="drop-area">
+                Drop persist.img or click to browse
+                <input type="file" onChange={e=>e.target.files[0]&&handleFile(e.target.files[0],'persist')} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {bothLoaded && deviceMatch && (
+        <div className={'match-badge ' + (deviceMatch.match?'ok':'error')}>
+          {deviceMatch.match ? '\u2713' : '\u2717'}
+          {deviceMatch.match
+            ? 'Same device (matched via ' + deviceMatch.method + ': ' + deviceMatch.value + ')'
+            : 'Different devices -- proinfo and persist do not match'}
+        </div>
+      )}
+
+      {showMismatch && (
+        <div className="error-banner">
+          <span className="eicon">&#128683;</span>
+          <div className="emsg">
+            <strong>Device Mismatch</strong>
+            <div className="edetail">
+              The proinfo and persist files appear to be from different devices.
+              No shared identifier found. Patching mismatched files may cause issues.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bothLoaded && activeTab==='step1' && (
+        <div className="btn-row" style={{justifyContent:'center',margin:'0 0 14px'}}>
+          <button className="btn btn-danger" onClick={()=>handleClean('all')}>Patch All -- PROINFO + PERSIST</button>
+        </div>
+      )}
+
+      {/* GUIDE TAB */}
+      {activeTab==='guide' && (
+        <div>
+          <Section title="Step 1: Analyze PROINFO / PERSIST" icon="&#9312;">
+            <div style={{fontSize:'0.82rem',color:'var(--text2)',marginBottom:12}}>
+              First, analyze your device partition files to understand the lock status and extract key data.
+            </div>
+            <div style={{background:'var(--bg)',borderRadius:8,padding:14,lineHeight:1.8,fontSize:'0.82rem'}}>
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>What you need:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; <strong>proinfo.bin</strong> -- PROINFO partition dump (3 MB)</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; <strong>persist.img</strong> -- PERSIST partition image (optional, ~50 MB)</div>
+              <div style={{color:'var(--text)',marginBottom:12}}>&#8226; Use SP Flash Tool or mtkclient to dump partitions</div>
+
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>How to use:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9312; Drop your <strong>proinfo.bin</strong> file</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9313; Review lock status, app package, license expiry</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9314; Drop your <strong>persist.img</strong> file</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9315; Check for paytrigger keys (hmac_key, rsa_priv, etc.)</div>
+              <div style={{color:'var(--text)',marginBottom:12}}>&#9316; Click <strong>"Patch All"</strong> to download cleaned files</div>
+
+              <div style={{color:'var(--yellow)',fontWeight:600,marginBottom:8}}>What gets cleaned:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; License/lock section (0x2A0000-0x2A0800)</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; RSA blobs and auth tokens</div>
+              <div style={{color:'var(--text)'}}>&#8226; Paytrigger TEE keys in persist</div>
+            </div>
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={()=>setActiveTab('step1')}>Go to Step 1</button>
+            </div>
+          </Section>
+
+          <Section title="Step 2: Anti-Relock Patch (ADB)" icon="&#9313;">
+            <div style={{fontSize:'0.82rem',color:'var(--text2)',marginBottom:12}}>
+              After flashing cleaned files, run the anti-relock patch to prevent MDM from re-locking your device.
+            </div>
+            <div style={{background:'var(--bg)',borderRadius:8,padding:14,lineHeight:1.8,fontSize:'0.82rem'}}>
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>Requirements:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; Chrome or Edge browser (WebUSB support)</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; USB cable connected to device</div>
+              <div style={{color:'var(--text)',marginBottom:12}}>&#8226; USB debugging enabled on device</div>
+
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>What it does:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; Uninstalls MDM/bloatware packages (26 targets)</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; Sets Private DNS to AdGuard (blocks MDM servers)</div>
+              <div style={{color:'var(--text)',marginBottom:12}}>&#8226; Disables lock screen timeout</div>
+
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>How to run:</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9312; Connect device via USB</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9313; Go to <strong>Step 2</strong> tab</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9314; Click <strong>"Connect Device"</strong> and select your device</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#9315; Click <strong>"Final Patch"</strong></div>
+              <div style={{color:'var(--text)'}}>&#9316; Reboot device when complete</div>
+            </div>
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={()=>setActiveTab('antirelock')}>Go to Step 2</button>
+            </div>
+          </Section>
+
+          <Section title="Complete Workflow" icon="&#128203;" defaultOpen={false}>
+            <div style={{fontSize:'0.82rem',lineHeight:1.8}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                <div style={{background:'var(--accent)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>1</div>
+                <div><strong>Dump partitions</strong> using SP Flash Tool or mtkclient</div>
+              </div>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                <div style={{background:'var(--accent)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>2</div>
+                <div><strong>Analyze</strong> in Step 1 tab</div>
+              </div>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                <div style={{background:'var(--accent)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>3</div>
+                <div><strong>Patch &amp; download</strong> cleaned files</div>
+              </div>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                <div style={{background:'var(--accent)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>4</div>
+                <div><strong>Flash</strong> cleaned proinfo.bin/persist.img to device</div>
+              </div>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}}>
+                <div style={{background:'var(--accent)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>5</div>
+                <div><strong>Boot device</strong> and enable USB debugging</div>
+              </div>
+              <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+                <div style={{background:'var(--green)',color:'white',borderRadius:'50%',width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}}>6</div>
+                <div><strong>Run Final Patch</strong> via browser</div>
+              </div>
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* STEP 1 - PROINFO + PERSIST combined */}
+      {activeTab==='step1' && (
+        <div>
+          {!pro && !per && <div className="empty-state"><div className="icon">&#128230;</div><p>Drop proinfo.bin and/or persist.img to analyze</p></div>}
+
+          {pro && (
+            <React.Fragment>
+              <Section title="PROINFO - File Overview" icon="&#128203;">
+                <KV label="Device serial" value={pro.label} />
+                <KV label="File size" value={pro.size.toLocaleString() + ' bytes (' + (pro.size/1024/1024).toFixed(1) + ' MB)'} />
+              </Section>
+              <Section title="PROINFO - App &amp; License Info" icon="&#128272;">
+                <KV label="App package" value={pro.appPkg} />
+                <KV label="App class" value={pro.appClass} />
+                <KV label="App version" value={pro.appVer} />
+                <KV label="Lock status" value={lockLabel(pro.lockStatus).text} cls={lockLabel(pro.lockStatus).cls} />
+                <KV label="Lock type" value={pro.lockCode} />
+                <KV label="Region / sub-ID" value={pro.regionId} />
+                <KV label="Internal ID" value={pro.internalId} />
+                <KV label="Build fingerprint" value={pro.buildHash} />
+              </Section>
+              <Section title="PROINFO - License / Expiry Timestamps" icon="&#9200;">
+                <KV label="License start" value={fmtDate(decodeTs(pro.tsStart))} />
+                <KV label="License expiry" value={expiryLabel(pro.tsExpiry).text} cls={expiryLabel(pro.tsExpiry).cls} />
+                <KV label="Grace period" value={pro.grace} />
+                <KV label="Retry interval" value={pro.retry} />
+                <KV label="Validity" value={pro.validity} />
+              </Section>
+              {pro.blobs.length > 0 && (
+                <Section title="PROINFO - RSA Blobs / Certificates" icon="&#128273;" defaultOpen={false}>
+                  {pro.blobs.map((b,i) => <div key={i}><KV label={b.name} value={b.role + ' -- ' + b.size + ' bytes'} /></div>)}
+                </Section>
+              )}
+              {pro.entries.length > 0 && (
+                <Section title="PROINFO - Partition Entry Log" icon="&#128221;" defaultOpen={false}>
+                  <table className="summary-table">
+                    <thead><tr><th>#</th><th>Tag</th><th>Offset</th><th>Written</th></tr></thead>
+                    <tbody>{pro.entries.map((e,i) => (
+                      <tr key={i}><td>{e.idx}</td><td>{e.tag}</td><td>0x{e.offset.toString(16).toUpperCase()}</td><td>{e.dt?e.dt.toLocaleDateString():'\u2014'}</td></tr>
+                    ))}</tbody>
+                  </table>
+                </Section>
+              )}
+              <Section title="PROINFO - License Section Hex" icon="&#128187;" defaultOpen={false}>
+                <HexDump data={pro.raw} offset={0x2A0000} limit={256} />
+              </Section>
+            </React.Fragment>
+          )}
+
+          {per && (
+            <React.Fragment>
+              {per.ext4 && (
+                <Section title="PERSIST - EXT4 Filesystem" icon="&#128190;">
+                  <KV label="Volume name" value={per.ext4.volume} />
+                  <KV label="Last mounted" value={per.ext4.mounted} />
+                </Section>
+              )}
+              {per.objects.length > 0 && (
+                <Section title={'PERSIST - TEE Objects (' + per.objects.length + ' total, ' + per.targets.length + ' paytrigger)'} icon="&#128737;">
+                  {per.objects.map((obj,i) => {
+                    const isT = PAYTARGETS.has(obj.name);
+                    return (
+                      <div key={i} style={{marginBottom:14,padding:12,background:isT?'rgba(255,107,107,0.08)':'var(--bg)',borderRadius:8}}>
+                        <KV label="Name" value={obj.name} cls={isT?'expired':''} />
+                        <KV label="Offset" value={'0x' + obj.offset.toString(16).toUpperCase()} />
+                        <KV label="Payload" value={obj.plen + ' bytes'} />
+                        <details>
+                          <summary style={{cursor:'pointer',color:'var(--cyan)',fontSize:'0.8rem',marginTop:6}}>Header hex</summary>
+                          <HexDump data={obj.header} limit={64} />
+                        </details>
+                        <details>
+                          <summary style={{cursor:'pointer',color:'var(--cyan)',fontSize:'0.8rem',marginTop:6}}>Payload hex</summary>
+                          <HexDump data={obj.payload} limit={96} />
+                        </details>
+                      </div>
+                    );
+                  })}
+                </Section>
+              )}
+              {per.objects.length === 0 && <div className="empty-state"><div className="icon">&#128269;</div><p>No TEE objects found (keys may be erased)</p></div>}
+              {per.targets.length > 0 && (
+                <Section title="PERSIST - Paytrigger Keys" icon="&#128202;">
+                  <table className="summary-table">
+                    <thead><tr><th>Name</th><th>Offset</th><th>Size</th></tr></thead>
+                    <tbody>{per.targets.map((t,i) => (
+                      <tr key={i}><td>{t.name}</td><td>0x{t.offset.toString(16).toUpperCase()}</td><td>{t.total.toLocaleString()} B</td></tr>
+                    ))}</tbody>
+                  </table>
+                </Section>
+              )}
+            </React.Fragment>
+          )}
+        </div>
+      )}
+
+      {activeTab==='antirelock' && (
+        <div>
+          {!webUsbSupported && (
+            <div className="error-banner">
+              <span className="eicon">&#128683;</span>
+              <div className="emsg">
+                <strong>WebUSB Not Supported</strong>
+                <div className="edetail">
+                  Use Chrome or Edge browser. Firefox/Safari do not support WebUSB.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Section title="Device Connection" icon="&#128241;">
+            <div className="device-status">
+              <span className={'dot ' + (deviceConnected ? 'connected' : 'disconnected')}></span>
+              <span>{deviceConnected ? 'Connected: ' + deviceSerial : 'No device connected'}</span>
+            </div>
+            <div style={{fontSize:'0.78rem',color:'var(--text2)',marginBottom:12}}>
+              Connect your Android device via USB with USB debugging enabled.
+              Click "Connect Device" to select your device from the browser.
+            </div>
+            <div className="btn-row">
+              {deviceConnected ? (
+                <button className="btn btn-outline" onClick={disconnectDevice}>Disconnect</button>
+              ) : (
+                <button className="btn btn-primary" onClick={connectDevice} disabled={!webUsbSupported}>Connect Device</button>
+              )}
+              <button className="btn btn-success" onClick={runAntiRelock} disabled={isRunning || !deviceConnected}>
+                {isRunning ? 'Running...' : 'Final Patch'}
+              </button>
+            </div>
+          </Section>
+
+          <Section title="MDM/Bloatware Package List" icon="&#128230;" defaultOpen={false}>
+            <table className="summary-table">
+              <thead><tr><th>Label</th><th>Package</th></tr></thead>
+              <tbody>{ANTI_RELOCK_TARGETS.map((item,i) => (
+                <tr key={i}>
+                  <td>{item.label}</td>
+                  <td style={{fontSize:'0.75rem',color:'var(--text2)'}}>{item.pkgs[0]}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </Section>
+
+          <Section title="Manual ADB Commands" icon="&#128187;">
+            <div style={{fontSize:'0.82rem',color:'var(--text2)',marginBottom:12}}>
+              Run these commands manually if Final Patch button doesn't work.
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>Download &amp; Install PatchedSecurityCom:</div>
+              <div className="btn-row" style={{marginBottom:8}}>
+                <a href="PatchedSecurityCom.apk" download className="btn btn-primary" style={{textDecoration:'none',fontSize:'0.78rem',padding:'6px 12px'}}>
+                  Download APK
+                </a>
+              </div>
+              <div className="code-block">
+                <div style={{color:'var(--text)'}}>adb push PatchedSecurityCom.apk /sdcard/Download/</div>
+                <div style={{color:'var(--text)'}}>adb shell pm install -r -d /sdcard/Download/PatchedSecurityCom.apk</div>
+              </div>
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>Set Private DNS:</div>
+              <div className="code-block">
+                <div style={{color:'var(--text)'}}>adb shell settings put global private_dns_mode hostname</div>
+                <div style={{color:'var(--text)'}}>adb shell settings put global private_dns_specifier dns.adguard.com</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{color:'var(--cyan)',fontWeight:600,marginBottom:8}}>Uninstall MDM/Bloatware:</div>
+              <div className="code-block">
+                {ANTI_RELOCK_TARGETS.map((item, i) => (
+                  <div key={i} style={{color:'var(--text)'}}>
+                    adb shell pm uninstall --user 0 {item.pkgs[0]}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          {adbLog.length > 0 && (
+            <Section title="ADB Output" icon="&#128196;">
+              <div className="log-box" ref={logRef}>
+                {adbLog.map((log, i) => (
+                  <div key={i} className={'log-line ' + log.type}>
+                    [{log.time}] {log.msg}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+        </div>
+      )}
+
+      {showModal && <ConfirmModal plan={plan} onConfirm={doClean} onCancel={()=>setShowModal(false)} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
