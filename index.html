@@ -526,13 +526,25 @@ function HexDump({ data, offset=0, limit=96 }) {
 function KV({ label, value, cls='' }) {
   return <div className="kv-row"><span className="kv-key">{label}</span><span className={'kv-val ' + cls}>{value||'(not set)'}</span></div>;
 }
-function Section({ title, icon, children }) {
+function Section({ title, icon, children, collapsible=false, defaultOpen=true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (!collapsible) {
+    return (
+      <div className="section">
+        <div className="section-header">
+          <span>{icon}</span> {title}
+        </div>
+        <div className="section-body">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="section">
-      <div className="section-header">
+      <div className="section-header" onClick={()=>setOpen(!open)}>
+        <span className={'arrow ' + (open?'open':'')}>&#9654;</span>
         <span>{icon}</span> {title}
       </div>
-      <div className="section-body">{children}</div>
+      {open && <div className="section-body">{children}</div>}
     </div>
   );
 }
@@ -1331,7 +1343,7 @@ function App() {
             </div>
           </Section>
 
-          <Section title="MDM/Bloatware Package List" icon="&#128230;" defaultOpen={false}>
+          <Section title="MDM/Bloatware Package List" icon="&#128230;" collapsible defaultOpen={false}>
             <table className="summary-table">
               <thead><tr><th>Label</th><th>Package</th></tr></thead>
               <tbody>{ANTI_RELOCK_TARGETS.map((item,i) => (
@@ -1343,7 +1355,7 @@ function App() {
             </table>
           </Section>
 
-          <Section title="Manual ADB Commands" icon="&#128187;">
+          <Section title="Manual ADB Commands" icon="&#128187;" collapsible>
             <div style={{fontSize:'0.82rem',color:'var(--text2)',marginBottom:12}}>
               Run these commands manually if Final Patch button doesn't work.
             </div>
