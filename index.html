@@ -1411,7 +1411,7 @@ function App() {
             {patchComplete && (
               <div className="btn-row" style={{marginTop:16,justifyContent:'center',flexWrap:'wrap'}}>
                 {patchFiles.map((f, i) => (
-                  <button key={i} className="btn btn-success" style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={f.name} onClick={() => {
+                  <button key={i} className="btn btn-success" style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 20px'}} onClick={() => {
                     const blob = new Blob([f.data], { type: 'application/octet-stream' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -1420,7 +1420,8 @@ function App() {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                   }}>
-                    {f.name.length > 18 ? f.name.substring(0,15) + '...' : f.name}
+                    <span>&#128229; Download</span>
+                    <span style={{fontSize:'0.7rem',opacity:0.8,marginTop:4}}>{f.name}</span>
                   </button>
                 ))}
                 <button className="btn btn-outline" onClick={() => {
