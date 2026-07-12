@@ -1,6 +1,6 @@
 /**
  * WebADB - Run ADB commands directly from browser via WebUSB
- * Full ADB protocol implementation
+ * Full ADB protocol with proper endpoint discovery
  */
 
 class WebADB {
@@ -10,6 +10,8 @@ class WebADB {
     this.localId = 1;
     this.VERSION = '00200000';
     this.MAX_DATA = 4096;
+    this.epOut = null;
+    this.epIn = null;
   }
 
   async connect() {
@@ -17,14 +19,41 @@ class WebADB {
       this.device = await navigator.usb.requestDevice({
         filters: [
           { classCode: 0xFF, subclassCode: 0x42, protocolCode: 0x01 },
-          { classCode: 0xFF },
           { vendorId: 0x18D1 }
         ]
       });
 
       await this.device.open();
       await this.device.selectConfiguration(1);
-      await this.device.claimInterface(0);
+
+      // Find ADB interface
+      let adbInterface = null;
+      for (const iface of this.device.configuration.interfaces) {
+        if (iface.alternate.interfaceClass === 0xFF) {
+          adbInterface = iface;
+          break;
+        }
+      }
+
+      if (!adbInterface) {
+        throw new Error('No ADB interface found');
+      }
+
+      await this.device.claimInterface(adbInterface.interfaceNumber);
+
+      // Find endpoints
+      const alt = adbInterface.alternate;
+      for (const ep of alt.endpoints) {
+        if (ep.direction === 'out') {
+          this.epOut = ep.endpointNumber;
+        } else if (ep.direction === 'in') {
+          this.epIn = ep.endpointNumber;
+        }
+      }
+
+      if (this.epOut === null || this.epIn === null) {
+        throw new Error('Could not find ADB endpoints');
+      }
 
       // ADB Version exchange
       const cnxn = this.createMessage('CNXN', 0x01000000, this.MAX_DATA, this.VERSION);
@@ -42,6 +71,7 @@ class WebADB {
       return { success: false, error: 'Unexpected response: ' + resp.command };
     } catch (error) {
       this.connected = false;
+      try { await this.device?.close(); } catch(e) {}
       return { success: false, error: error.message };
     }
   }
@@ -55,27 +85,24 @@ class WebADB {
     }
     this.connected = false;
     this.device = null;
+    this.epOut = null;
+    this.epIn = null;
   }
 
   async shellCommand(command) {
     if (!this.connected) throw new Error('Not connected');
 
-    const remoteId = 0;
     const localId = this.localId++;
-
-    // Send OPEN
     const dest = 'shell:' + command;
     const destBytes = new TextEncoder().encode(dest);
-    const openMsg = this.createMessage('OPEN', localId, remoteId, destBytes);
+    const openMsg = this.createMessage('OPEN', localId, 0, destBytes);
     await this.sendMsg(openMsg);
 
-    // Wait for OKAY
     let resp = await this.recvMsg();
     if (resp.command !== 'OKAY') {
       throw new Error('OPEN failed: ' + resp.command);
     }
 
-    // Read data
     let output = '';
     let done = false;
 
@@ -85,13 +112,10 @@ class WebADB {
       if (resp.command === 'WRTE') {
         const text = new TextDecoder().decode(resp.data || new Uint8Array(0));
         output += text;
-
-        // Send OKAY for WRTE
         const okay = this.createMessage('OKAY', localId, resp.arg0);
         await this.sendMsg(okay);
       } else if (resp.command === 'CLSE') {
         done = true;
-        // Send CLSE back
         const clse = this.createMessage('CLSE', localId, resp.arg0);
         await this.sendMsg(clse);
       } else if (resp.command === 'OKAY') {
@@ -114,9 +138,6 @@ class WebADB {
       data = maybeData || new Uint8Array(0);
     } else if (arg1OrData instanceof Uint8Array) {
       data = arg1OrData;
-      arg1Val = 0;
-    } else if (arg1OrData === undefined) {
-      arg1Val = 0;
     }
 
     const cmdBytes = new Uint8Array(4);
@@ -124,17 +145,15 @@ class WebADB {
       cmdBytes[i] = command.charCodeAt(i);
     }
 
+    const cs = this.checksum(data);
     const msg = new Uint8Array(24 + data.length);
     msg.set(cmdBytes, 0);
     msg.set(this.u32le(arg0Val), 4);
     msg.set(this.u32le(arg1Val), 8);
     msg.set(this.u32le(data.length), 12);
-    msg.set(this.u32le(this.checksum(data)), 16);
-    // Magic = checksum XOR 0xFFFFFFFF
-    msg.set(this.u32le(this.checksum(data) ^ 0xFFFFFFFF), 20);
-    if (data.length > 0) {
-      msg.set(data, 24);
-    }
+    msg.set(this.u32le(cs), 16);
+    msg.set(this.u32le(cs ^ 0xFFFFFFFF), 20);
+    if (data.length > 0) msg.set(data, 24);
     return msg;
   }
 
@@ -149,18 +168,16 @@ class WebADB {
 
   checksum(data) {
     let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-      sum += data[i];
-    }
+    for (let i = 0; i < data.length; i++) sum += data[i];
     return sum >>> 0;
   }
 
   async sendMsg(msg) {
-    await this.device.transferOut(0x01, msg);
+    await this.device.transferOut(this.epOut, msg);
   }
 
   async recvMsg() {
-    const resp = await this.device.transferIn(0x81, this.MAX_DATA + 24);
+    const resp = await this.device.transferIn(this.epIn, this.MAX_DATA + 24);
     const buf = new Uint8Array(resp.data.buffer);
 
     const command = String.fromCharCode(buf[0], buf[1], buf[2], buf[3]);
