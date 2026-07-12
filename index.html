@@ -509,6 +509,7 @@ function App() {
   const [patchLog, setPatchLog] = useState([]);
   const [patching, setPatching] = useState(false);
   const logRef = useRef(null);
+  const patchLogRef = useRef(null);
   const adbRef = useRef(null);
 
   const pro = proFile ? Object.assign({}, parseProinfo(proFile.data), { fileName: proFile.name, raw: proFile.data }) : null;
@@ -531,6 +532,10 @@ function App() {
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [adbLog]);
+
+  useEffect(() => {
+    if (patchLogRef.current) patchLogRef.current.scrollTop = patchLogRef.current.scrollHeight;
+  }, [patchLog]);
 
   const addLog = useCallback((msg, type='info') => {
     setAdbLog(prev => [...prev, { msg, type, time: new Date().toLocaleTimeString() }]);
@@ -1293,7 +1298,7 @@ function App() {
         <div className="modal-overlay">
           <div className="modal" style={{maxWidth:560}}>
             <h3>Patching Files...</h3>
-            <div className="log-box" style={{maxHeight:400,marginTop:12}}>
+            <div className="log-box" style={{maxHeight:400,marginTop:12}} ref={patchLogRef}>
               {patchLog.map((log, i) => (
                 <div key={i} className={'log-line ' + log.type}>
                   [{log.time}] {log.msg}
