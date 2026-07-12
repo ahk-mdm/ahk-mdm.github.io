@@ -633,10 +633,9 @@ function App() {
       adbRef.current = adb;
       setDeviceConnected(true);
 
-      const serial = adb.banner ? adb.banner.split(':')[0] : adb.device?.serialNumber || 'Unknown';
+      const serial = adb.banner ? adb.banner.split(':')[0] : 'Unknown';
       setDeviceSerial(serial);
       addLog('Device connected: ' + serial, 'ok');
-      addLog('ADB version: ' + (adb.banner || 'unknown'), 'ok');
     } catch (e) {
       setDeviceConnected(false);
       addLog('Connection failed: ' + e.message, 'error');
@@ -671,12 +670,13 @@ function App() {
       while (!done) {
         const response = await stream.receive();
         if (response.cmd === 'WRTE') {
-          const text = new TextDecoder().decode(response.data?.buffer || new Uint8Array(0));
-          output += text;
+          if (response.data) {
+            const bytes = new Uint8Array(response.data.buffer || response.data);
+            output += new TextDecoder().decode(bytes);
+          }
           await stream.send('OKAY');
         } else if (response.cmd === 'CLSE') {
           done = true;
-          await stream.send('CLSE');
         } else if (response.cmd === 'OKAY') {
           continue;
         } else {
@@ -685,7 +685,7 @@ function App() {
       }
 
       if (output) addLog(output, 'ok');
-      return output;
+      return output.trim();
     } catch (e) {
       addLog('Error: ' + e.message, 'error');
       return null;
@@ -713,16 +713,24 @@ function App() {
         while (!done) {
           const response = await stream.receive();
           if (response.cmd === 'WRTE') {
-            output += new TextDecoder().decode(response.data?.buffer || new Uint8Array(0));
+            if (response.data) {
+              const bytes = new Uint8Array(response.data.buffer || response.data);
+              output += new TextDecoder().decode(bytes);
+            }
             await stream.send('OKAY');
           } else if (response.cmd === 'CLSE') {
             done = true;
-            await stream.send('CLSE');
-          } else if (response.cmd === 'OKAY') { continue; }
-          else { done = true; }
+          } else if (response.cmd === 'OKAY') {
+            continue;
+          } else {
+            done = true;
+          }
         }
-        return output;
-      } catch(e) { return ''; }
+        return output.trim();
+      } catch(e) {
+        console.error('adbShell error:', e);
+        return '';
+      }
     };
 
     setIsRunning(true);
@@ -788,17 +796,20 @@ function App() {
     await wait(400);
 
     // Get installed packages
+    addLog('  $ pm list packages', 'info');
     const pkgList = await adbShell('pm list packages');
-    const installedPkgs = pkgList.split('\n').map(l => l.replace('package:', '').trim()).filter(Boolean);
+    addLog('  ' + (pkgList.split('\n').length) + ' packages found', 'ok');
+    await wait(500);
 
     let removed = 0;
     for (const item of ANTI_RELOCK_TARGETS) {
       for (const pkg of item.pkgs) {
-        if (installedPkgs.includes(pkg)) {
+        if (pkgList.includes(pkg)) {
+          addLog('  $ pm uninstall --user 0 ' + pkg, 'info');
           const result = await adbShell('pm uninstall --user 0 ' + pkg);
-          await wait(200);
+          await wait(300);
           const status = result.includes('Success') ? 'Success' : 'Failed';
-          addLog('  ' + pkg + ' -> ' + status, status === 'Success' ? 'ok' : 'error');
+          addLog('  ' + (result || 'no output'), status === 'Success' ? 'ok' : 'error');
           if (status === 'Success') removed++;
           break;
         }
@@ -813,18 +824,15 @@ function App() {
     await wait(600);
 
     // Clear MDM config cache
-    await adbShell('pm clear com.mediatek.mdmconfig');
-    addLog('  Clearing MDM config cache...', 'ok');
-    await wait(400);
-
-    // Disable device admin apps
-    const adminList = await adbShell('pm list packages -d');
-    addLog('  Resetting device admin...', 'ok');
+    addLog('  $ pm clear com.mediatek.mdmconfig', 'info');
+    const clearResult = await adbShell('pm clear com.mediatek.mdmconfig');
+    addLog('  ' + (clearResult || 'done'), 'ok');
     await wait(400);
 
     // Clear package cache
-    await adbShell('pm cache --clear');
-    addLog('  Clearing package cache...', 'ok');
+    addLog('  $ pm cache --clear', 'info');
+    const cacheResult = await adbShell('pm cache --clear');
+    addLog('  ' + (cacheResult || 'done'), 'ok');
     await wait(400);
 
     addLog('', 'info');
