@@ -359,50 +359,54 @@ function detectType(data) {
 }
 
 function parseProinfo(data) {
-  if (data.length < 0x2A0800) return null;
+  if (!data || data.length < 0x2A0800) return null;
   const s = data.slice(0x2A0000, 0x2A0800);
   const g = (o, l) => readCstr(s, o, l);
 
   // Helper: read uint32 from raw data at offset
   const readU32 = (arr, off) => {
+    if (off + 4 > arr.length) return 0;
     return arr[off] | (arr[off+1]<<8) | (arr[off+2]<<16) | (arr[off+3]<<24);
   };
 
   // Helper: Uint8Array to hex string
   const toHexStr = (arr) => Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 
+  // Helper: safe read byte
+  const rb = (arr, off) => (off < arr.length) ? arr[off] : 0;
+
   // Hardware identity
-  const hwId = toHexStr(data.slice(0x40, 0x52));
+  const hwId = data.length > 0x52 ? toHexStr(data.slice(0x40, 0x52)) : '';
   const mfgTs = readU32(data, 0x4C);
-  const hwRev = readCstr(data, 0x2800FD, 16);
+  const hwRev = data.length > 0x280100 ? readCstr(data, 0x2800FD, 16) : '';
 
   // License block detail
   const licCheck = readU32(s, 0x0400);
-  const licFlag = s[0x040E];
-  const skuPrefix = s.slice(0x0604, 0x0607).filter(b=>b!==0).map(b=>String.fromCharCode(b)).join('');
-  const sku = readCstr(s, 0x060A, 32);
-  const secFlag = s[0x0637];
-  const secCode = readCstr(s, 0x0627, 32);
+  const licFlag = rb(s, 0x040E);
+  const skuPrefix = data.length > 0x2A0610 ? s.slice(0x0604, 0x0607).filter(b=>b!==0).map(b=>String.fromCharCode(b)).join('') : '';
+  const sku = data.length > 0x2A0630 ? readCstr(s, 0x060A, 32) : '';
+  const secFlag = rb(s, 0x0637);
+  const secCode = data.length > 0x2A0640 ? readCstr(s, 0x0627, 32) : '';
 
   // Provisioning
-  const provBlob = s.slice(0x064F, 0x0656);
+  const provBlob = data.length > 0x2A0660 ? s.slice(0x064F, 0x0656) : new Uint8Array(0);
   const provVal = provBlob.length >= 4 ? readU32(provBlob, 0) : 0;
-  const provVer = s[0x0659];
-  const provSep = String.fromCharCode(s[0x0661], s[0x0662]);
+  const provVer = rb(s, 0x0659);
+  const provSep = data.length > 0x2A0664 ? String.fromCharCode(rb(s, 0x0661), rb(s, 0x0662)) : '';
   const provTs = readU32(s, 0x0664);
-  const buildPrefix = s[0x076C];
+  const buildPrefix = rb(s, 0x076C);
 
   // Hardware flags
-  const hwCfg1 = Array.from(data.slice(0x2C00A4, 0x2C00B0));
-  const chipVar = data[0x2C0010];
-  const featureCount = data[0x2C008D];
-  const memConfig = data[0x2C00DC];
-  const procCfg = data.slice(0x2C0090, 0x2C0092);
-  const extraFlags = data.slice(0x2C010E, 0x2C0110);
+  const hwCfg1 = data.length > 0x2C00B0 ? Array.from(data.slice(0x2C00A4, 0x2C00B0)) : [];
+  const chipVar = data.length > 0x2C0011 ? data[0x2C0010] : 0;
+  const featureCount = data.length > 0x2C008E ? data[0x2C008D] : 0;
+  const memConfig = data.length > 0x2C00DD ? data[0x2C00DC] : 0;
+  const procCfg = data.length > 0x2C0092 ? data.slice(0x2C0090, 0x2C0092) : new Uint8Array(0);
+  const extraFlags = data.length > 0x2C0110 ? data.slice(0x2C010E, 0x2C0110) : new Uint8Array(0);
 
   // Factory data
-  const flagsRaw = Array.from(data.slice(0x280098, 0x28009E));
-  const rsa2Head = Array.from(data.slice(0x220200, 0x22020C));
+  const flagsRaw = data.length > 0x28009E ? Array.from(data.slice(0x280098, 0x28009E)) : [];
+  const rsa2Head = data.length > 0x22020C ? Array.from(data.slice(0x220200, 0x22020C)) : [];
   const rsa2Len = rsa2Head.length >= 10 ? (rsa2Head[8] | (rsa2Head[9]<<8)) : 0;
 
   // RSA blobs
@@ -572,8 +576,10 @@ function App() {
   const patchLogRef = useRef(null);
   const adbRef = useRef(null);
 
-  const pro = proFile ? Object.assign({}, parseProinfo(proFile.data), { fileName: proFile.name, raw: proFile.data }) : null;
-  const per = perFile ? Object.assign({}, parsePersist(perFile.data), { fileName: perFile.name, raw: perFile.data }) : null;
+  const proParsed = proFile ? (() => { try { return parseProinfo(proFile.data); } catch(e) { console.error('Parse error:', e); return null; } })() : null;
+  const pro = proParsed ? Object.assign({}, proParsed, { fileName: proFile.name, raw: proFile.data }) : null;
+  const perParsed = perFile ? (() => { try { return parsePersist(perFile.data); } catch(e) { console.error('Parse error:', e); return null; } })() : null;
+  const per = perParsed ? Object.assign({}, perParsed, { fileName: perFile.name, raw: perFile.data }) : null;
 
   useEffect(() => {
     if (!navigator.usb) {
