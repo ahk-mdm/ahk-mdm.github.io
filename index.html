@@ -1421,7 +1421,7 @@ function App() {
                     URL.revokeObjectURL(url);
                   }}>
                     <span>&#128229; Download</span>
-                    <span style={{fontSize:'0.7rem',opacity:0.8,marginTop:4}}>{f.name}</span>
+                    <span style={{fontSize:'0.7rem',opacity:0.8,marginTop:4}}>{f.name.length > 20 ? f.name.substring(0, Math.floor(f.name.length / 2)) + '...' : f.name}</span>
                   </button>
                 ))}
                 <button className="btn btn-outline" onClick={() => {
