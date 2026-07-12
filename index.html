@@ -826,102 +826,108 @@ function App() {
     };
 
     addPatch('=== AHK Phone Repair - File Patcher ===', 'info');
-    await wait(300);
+    await wait(800);
 
     if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
       addPatch('', 'info');
       addPatch('[PROINFO] Analyzing partition...', 'info');
-      await wait(500);
+      await wait(1200);
       addPatch('  File: ' + pro.name, 'ok');
+      await wait(500);
       addPatch('  Size: ' + pro.size.toLocaleString() + ' bytes', 'ok');
+      await wait(500);
       addPatch('  Serial: ' + pro.label, 'ok');
-      await wait(400);
+      await wait(800);
 
       addPatch('', 'info');
       addPatch('[PROINFO] Detecting lock status...', 'info');
-      await wait(600);
+      await wait(1500);
       addPatch('  Lock status: ' + (pro.lockStatus || 'unknown'), 'warn');
+      await wait(600);
       addPatch('  App package: ' + (pro.appPkg || 'unknown'), 'info');
-      await wait(400);
+      await wait(800);
 
       addPatch('', 'info');
       addPatch('[PROINFO] Patching license section...', 'info');
-      await wait(800);
+      await wait(2000);
       addPatch('  Patching license data...', 'ok');
-      await wait(300);
+      await wait(800);
       addPatch('  Patching lock code...', 'ok');
-      await wait(300);
+      await wait(800);
       addPatch('  Patching timestamps...', 'ok');
-      await wait(200);
-      addPatch('  License section cleared (2 KB)', 'ok');
-      await wait(400);
+      await wait(800);
+      addPatch('  License section cleared', 'ok');
+      await wait(1000);
 
       addPatch('', 'info');
       addPatch('[PROINFO] Patching RSA blobs...', 'info');
-      await wait(700);
+      await wait(1800);
       addPatch('  Patching RSA blob 1 (Primary auth token)...', 'ok');
-      await wait(250);
+      await wait(700);
       addPatch('  Patching RSA blob 2 (Secondary auth token)...', 'ok');
-      await wait(250);
+      await wait(700);
       addPatch('  Patching RSA blob 3 (Cert chain)...', 'ok');
-      await wait(250);
+      await wait(700);
       addPatch('  Patching SHA256 hash...', 'ok');
-      await wait(300);
-      addPatch('  RSA blobs cleared (3.5 KB)', 'ok');
-      await wait(300);
+      await wait(800);
+      addPatch('  RSA blobs cleared', 'ok');
+      await wait(800);
 
       addPatch('', 'info');
       addPatch('[PROINFO] Patching HW flags...', 'info');
-      await wait(500);
+      await wait(1200);
       addPatch('  Setting chip variant flag...', 'ok');
-      await wait(200);
+      await wait(600);
       addPatch('  Clearing isGslb flag...', 'ok');
-      await wait(300);
-      addPatch('  HW flags patched (2 bytes)', 'ok');
-      await wait(300);
+      await wait(700);
+      addPatch('  HW flags patched', 'ok');
+      await wait(800);
 
       addPatch('', 'info');
       addPatch('[PROINFO] Generating patched file...', 'info');
-      await wait(600);
+      await wait(1500);
       addPatch('  proinfo_' + model + '_patched_' + ts + '.bin', 'ok');
     }
 
     if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
       addPatch('', 'info');
       addPatch('[PERSIST] Analyzing partition...', 'info');
-      await wait(500);
+      await wait(1200);
       addPatch('  File: ' + per.name, 'ok');
+      await wait(500);
       addPatch('  Size: ' + per.size.toLocaleString() + ' bytes', 'ok');
-      await wait(400);
+      await wait(800);
 
       if (per.ext4) {
         addPatch('  Volume: ' + per.ext4.volume, 'info');
+        await wait(500);
         addPatch('  Last mounted: ' + per.ext4.mounted, 'info');
       }
-      await wait(400);
+      await wait(1000);
 
       addPatch('', 'info');
       addPatch('[PERSIST] Scanning TEE objects...', 'info');
-      await wait(700);
+      await wait(1800);
       addPatch('  Found ' + per.objects.length + ' TEE objects', 'ok');
+      await wait(500);
       addPatch('  Paytrigger targets: ' + per.targets.length, 'ok');
-      await wait(400);
+      await wait(1000);
 
       if (per.targets.length > 0) {
         addPatch('', 'info');
         addPatch('[PERSIST] Erasing paytrigger keys...', 'info');
-        await wait(600);
+        await wait(1500);
         for (const t of per.targets) {
-          await wait(300);
+          await wait(700);
           addPatch('  Erasing ' + t.name + ' (' + t.total.toLocaleString() + ' bytes)...', 'ok');
         }
-        await wait(400);
+        await wait(800);
         addPatch('  All paytrigger keys erased', 'ok');
       }
 
       addPatch('', 'info');
       addPatch('[PERSIST] Generating patched file...', 'info');
-      await wait(600);
+      await wait(1500);
       addPatch('  persist_' + model + '_patched_' + ts + '.img', 'ok');
     }
 
