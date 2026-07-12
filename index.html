@@ -708,32 +708,43 @@ function App() {
 
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const adbShell = async (cmd) => {
+      if (!adbRef.current) {
+        addLog('  Device disconnected!', 'error');
+        return '';
+      }
       try {
         const stream = adbRef.current.shell(cmd);
         let output = '';
-        let done = false;
 
-        while (!done) {
-          const msg = await stream.receive();
-
-          if (msg.cmd === 'WRTE') {
-            if (msg.data) {
-              const bytes = new Uint8Array(msg.data.buffer || msg.data);
-              output += new TextDecoder().decode(bytes);
+        const readAll = async () => {
+          try {
+            while (true) {
+              const msg = await stream.receive();
+              if (msg.cmd === 'WRTE') {
+                if (msg.data) {
+                  const bytes = new Uint8Array(msg.data.buffer || msg.data);
+                  output += new TextDecoder().decode(bytes);
+                }
+                await stream.send('OKAY');
+              } else if (msg.cmd === 'CLSE') {
+                await stream.close();
+                return;
+              } else if (msg.cmd === 'OKAY') {
+                continue;
+              }
             }
-            await stream.send('OKAY');
-          } else if (msg.cmd === 'CLSE') {
-            done = true;
-            await stream.close();
-          } else if (msg.cmd === 'OKAY') {
-            continue;
-          } else {
-            done = true;
+          } catch(e) {
+            console.error('Stream read error:', e);
           }
-        }
+        };
+
+        await readAll();
         return output.trim();
       } catch(e) {
         console.error('adbShell error:', e);
+        if (e.message && e.message.includes('disconnected')) {
+          addLog('  Device disconnected!', 'error');
+        }
         return '';
       }
     };
@@ -750,26 +761,21 @@ function App() {
     addLog('[1/5] Reading device info...', 'info');
     await wait(600);
 
-    const model = (await adbShell('getprop ro.product.model')).trim() || 'Unknown';
-    const brand = (await adbShell('getprop ro.product.brand')).trim() || 'Unknown';
-    const androidVer = (await adbShell('getprop ro.build.version.release')).trim() || 'Unknown';
-    const sdkVer = (await adbShell('getprop ro.build.version.sdk')).trim() || 'Unknown';
-    const buildId = (await adbShell('getprop ro.build.display.id')).trim() || 'Unknown';
-    const serial = (await adbShell('getprop ro.serialno')).trim() || 'Unknown';
-    const secPatch = (await adbShell('getprop ro.build.version.security_patch')).trim() || 'Unknown';
-    const miuiVer = (await adbShell('getprop ro.miui.ui.version.name')).trim() || '';
+    const runProp = async (prop, label) => {
+      addLog('  $ getprop ' + prop, 'info');
+      const val = await adbShell('getprop ' + prop);
+      addLog('  ' + label + ': ' + (val || '(empty)'), val ? 'ok' : 'warn');
+      await wait(300);
+      return val;
+    };
 
-    addLog('  Brand: ' + brand, 'ok');
-    await wait(300);
-    addLog('  Model: ' + model, 'ok');
-    await wait(300);
-    addLog('  Android: ' + androidVer + ' (SDK ' + sdkVer + ')', 'ok');
-    await wait(300);
-    addLog('  Build: ' + buildId, 'ok');
-    await wait(300);
-    addLog('  Security patch: ' + secPatch, 'ok');
-    await wait(300);
-    addLog('  Serial: ' + serial, 'ok');
+    const brand = await runProp('ro.product.brand', 'Brand');
+    const model = await runProp('ro.product.model', 'Model');
+    const androidVer = await runProp('ro.build.version.release', 'Android');
+    const sdkVer = await runProp('ro.build.version.sdk', 'SDK');
+    const buildId = await runProp('ro.build.display.id', 'Build');
+    const serial = await runProp('ro.serialno', 'Serial');
+    const secPatch = await runProp('ro.build.version.security_patch', 'Security patch');
     await wait(500);
 
     addLog('', 'info');
@@ -809,20 +815,26 @@ function App() {
     await wait(500);
 
     let removed = 0;
+    let skipped = 0;
     for (const item of ANTI_RELOCK_TARGETS) {
+      let found = false;
       for (const pkg of item.pkgs) {
         if (installedPkgs.has(pkg)) {
           addLog('  $ pm uninstall --user 0 ' + pkg, 'info');
           const result = await adbShell('pm uninstall --user 0 ' + pkg);
-          await wait(300);
+          await wait(200);
           addLog('  ' + (result || 'done'), result.includes('Success') ? 'ok' : 'warn');
           if (result.includes('Success')) removed++;
+          found = true;
           break;
         }
       }
+      if (!found) {
+        skipped++;
+      }
     }
     await wait(500);
-    addLog('  ' + removed + ' packages uninstalled', 'ok');
+    addLog('  ' + removed + ' packages uninstalled, ' + skipped + ' not found', 'ok');
     await wait(300);
 
     addLog('', 'info');
