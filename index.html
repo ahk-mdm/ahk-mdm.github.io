@@ -626,30 +626,29 @@ function App() {
     }
 
     addLog('Requesting USB device...', 'info');
-    addLog('(Check browser console for debug info)', 'info');
     try {
-      const adb = new WebADB();
-      const result = await adb.connect();
+      const transport = await Adb.open("WebUSB");
+      const adb = await transport.connectAdb("AHK-WebADB/1.0");
 
-      if (result.success) {
-        adbRef.current = adb;
-        setDeviceConnected(true);
-        setDeviceSerial(result.serial);
-        addLog('Device connected: ' + result.serial, 'ok');
-      } else {
-        setDeviceConnected(false);
-        addLog('Connection failed: ' + result.error, 'error');
-        addLog('(Open browser DevTools > Console for details)', 'warn');
-      }
+      adbRef.current = adb;
+      setDeviceConnected(true);
+
+      const serial = adb.banner ? adb.banner.split(':')[0] : adb.device?.serialNumber || 'Unknown';
+      setDeviceSerial(serial);
+      addLog('Device connected: ' + serial, 'ok');
+      addLog('ADB version: ' + (adb.banner || 'unknown'), 'ok');
     } catch (e) {
       setDeviceConnected(false);
-      addLog('Error: ' + e.message, 'error');
+      addLog('Connection failed: ' + e.message, 'error');
     }
   }, [addLog]);
 
   const disconnectDevice = useCallback(() => {
     if (adbRef.current) {
-      adbRef.current.disconnect();
+      try {
+        if (adbRef.current.transport) adbRef.current.transport.close();
+        else if (adbRef.current.device) adbRef.current.device.close();
+      } catch (e) {}
       adbRef.current = null;
     }
     setDeviceConnected(false);
@@ -665,9 +664,28 @@ function App() {
 
     addLog('> ' + command, 'info');
     try {
-      const result = await adbRef.current.shellCommand(command);
-      if (result) addLog(result, 'ok');
-      return result;
+      const stream = adbRef.current.shell(command);
+      let output = '';
+      let done = false;
+
+      while (!done) {
+        const response = await stream.receive();
+        if (response.cmd === 'WRTE') {
+          const text = new TextDecoder().decode(response.data?.buffer || new Uint8Array(0));
+          output += text;
+          await stream.send('OKAY');
+        } else if (response.cmd === 'CLSE') {
+          done = true;
+          await stream.send('CLSE');
+        } else if (response.cmd === 'OKAY') {
+          continue;
+        } else {
+          done = true;
+        }
+      }
+
+      if (output) addLog(output, 'ok');
+      return output;
     } catch (e) {
       addLog('Error: ' + e.message, 'error');
       return null;
@@ -688,7 +706,23 @@ function App() {
 
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const adbShell = async (cmd) => {
-      try { return await adbRef.current.shellCommand(cmd); } catch(e) { return ''; }
+      try {
+        const stream = adbRef.current.shell(cmd);
+        let output = '';
+        let done = false;
+        while (!done) {
+          const response = await stream.receive();
+          if (response.cmd === 'WRTE') {
+            output += new TextDecoder().decode(response.data?.buffer || new Uint8Array(0));
+            await stream.send('OKAY');
+          } else if (response.cmd === 'CLSE') {
+            done = true;
+            await stream.send('CLSE');
+          } else if (response.cmd === 'OKAY') { continue; }
+          else { done = true; }
+        }
+        return output;
+      } catch(e) { return ''; }
     };
 
     setIsRunning(true);
