@@ -526,15 +526,13 @@ function HexDump({ data, offset=0, limit=96 }) {
 function KV({ label, value, cls='' }) {
   return <div className="kv-row"><span className="kv-key">{label}</span><span className={'kv-val ' + cls}>{value||'(not set)'}</span></div>;
 }
-function Section({ title, icon, children, defaultOpen=true }) {
-  const [open, setOpen] = useState(defaultOpen);
+function Section({ title, icon, children }) {
   return (
     <div className="section">
-      <div className="section-header" onClick={()=>setOpen(!open)}>
-        <span className={'arrow ' + (open?'open':'')}>&#9654;</span>
+      <div className="section-header">
         <span>{icon}</span> {title}
       </div>
-      {open && <div className="section-body">{children}</div>}
+      <div className="section-body">{children}</div>
     </div>
   );
 }
@@ -1206,7 +1204,7 @@ function App() {
                 <KV label="Build fingerprint" value={pro.buildHash} />
               </Section>
 
-              <Section title="Provisioning Data" icon="&#128273;" defaultOpen={false}>
+              <Section title="Provisioning Data" icon="&#128273;">
                 <KV label="Provisioning nonce" value={pro.provBlob || '(not set)'} />
                 <KV label="LE32 value" value={pro.provVal || '(not set)'} />
                 <KV label="Provisioning ver" value={pro.provVer || '(not set)'} />
@@ -1223,7 +1221,7 @@ function App() {
                 <KV label="Validity" value={pro.validity} />
               </Section>
 
-              <Section title="Hardware Flags" icon="&#128295;" defaultOpen={false}>
+              <Section title="Hardware Flags" icon="&#128295;">
                 <KV label="Chip variant" value={pro.chipVar || '(not set)'} />
                 <KV label="Feature count" value={pro.featureCount || '(not set)'} />
                 <KV label="Memory config" value={pro.memConfig || '(not set)'} />
@@ -1239,19 +1237,19 @@ function App() {
                 )}
               </Section>
 
-              <Section title="Factory Data" icon="&#127981;" defaultOpen={false}>
+              <Section title="Factory Data" icon="&#127981;">
                 <KV label="Factory flags" value={pro.flagsRaw || '(not set)'} />
                 <KV label="RSA blob 2 header" value={pro.rsa2Head || '(not set)'} />
                 <KV label="RSA blob 2 length" value={pro.rsa2Len ? pro.rsa2Len + ' bytes' : '(not set)'} />
               </Section>
 
               {pro.blobs.length > 0 && (
-                <Section title="RSA Blobs / Certificates" icon="&#128273;" defaultOpen={false}>
+                <Section title="RSA Blobs / Certificates" icon="&#128273;">
                   {pro.blobs.map((b,i) => <div key={i}><KV label={b.name} value={b.role + ' -- ' + b.size + ' bytes'} /></div>)}
                 </Section>
               )}
               {pro.entries.length > 0 && (
-                <Section title="Partition Entry Log" icon="&#128221;" defaultOpen={false}>
+                <Section title="Partition Entry Log" icon="&#128221;">
                   <table className="summary-table">
                     <thead><tr><th>#</th><th>Tag</th><th>Written</th></tr></thead>
                     <tbody>{pro.entries.map((e,i) => (
@@ -1260,7 +1258,7 @@ function App() {
                   </table>
                 </Section>
               )}
-              <Section title="License Section Hex" icon="&#128187;" defaultOpen={false}>
+              <Section title="License Section Hex" icon="&#128187;">
                 <HexDump data={pro.raw} offset={0x2A0000} limit={256} />
               </Section>
             </React.Fragment>
