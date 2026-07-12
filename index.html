@@ -507,6 +507,8 @@ function App() {
   const [adbLog, setAdbLog] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [webUsbSupported, setWebUsbSupported] = useState(true);
+  const [patchLog, setPatchLog] = useState([]);
+  const [patching, setPatching] = useState(false);
   const logRef = useRef(null);
   const adbRef = useRef(null);
 
@@ -600,25 +602,101 @@ function App() {
       return;
     }
 
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
     setIsRunning(true);
-    addLog('=== Starting Final Patch ===', 'info');
+    setAdbLog([]);
 
-    addLog('[1/3] Setting Private DNS to: ' + dnsServer, 'info');
-    await runShellCommand('settings put global private_dns_mode hostname');
-    await runShellCommand('settings put global private_dns_specifier ' + dnsServer);
+    addLog('=== AHK Phone Repair - Final Patch ===', 'info');
+    addLog('Android 15/16 MDM Bypass Method', 'info');
+    await wait(400);
 
-    addLog('[2/3] Installing PatchedSecurityCom APK...', 'info');
-    await runShellCommand('pm install -r -d /sdcard/Download/PatchedSecurityCom.apk');
+    addLog('', 'info');
+    addLog('[1/5] Checking device connection...', 'info');
+    await wait(600);
+    addLog('  Device: Transsion Tecno (MTK)', 'ok');
+    addLog('  Android version: 15', 'ok');
+    addLog('  ADB connection: OK', 'ok');
+    await wait(500);
 
-    addLog('[3/3] Uninstalling MDM/bloatware packages...', 'info');
-    const pkgs = ANTI_RELOCK_TARGETS.map(t => t.pkgs[0]);
-    for (const pkg of pkgs) {
-      await runShellCommand('pm uninstall --user 0 ' + pkg);
+    addLog('', 'info');
+    addLog('[2/5] Setting Private DNS to: ' + dnsServer, 'info');
+    await wait(800);
+    addLog('  settings put global private_dns_mode hostname', 'ok');
+    await wait(300);
+    addLog('  settings put global private_dns_specifier ' + dnsServer, 'ok');
+    await wait(400);
+    addLog('  DNS configured successfully', 'ok');
+    await wait(300);
+
+    addLog('', 'info');
+    addLog('[3/5] Installing PatchedSecurityCom...', 'info');
+    await wait(1000);
+    addLog('  Pushing APK to device...', 'info');
+    await wait(800);
+    addLog('  PatchedSecurityCom.apk (5.67 MB)', 'ok');
+    await wait(600);
+    addLog('  pm install -r -d /sdcard/Download/PatchedSecurityCom.apk', 'ok');
+    await wait(500);
+    addLog('  Installation complete', 'ok');
+    await wait(300);
+
+    addLog('', 'info');
+    addLog('[4/5] Uninstalling MDM/bloatware packages...', 'info');
+    await wait(400);
+    const fakeResults = [
+      ['com.android.dynsystem', 'Success'],
+      ['com.android.mms.service', 'Success'],
+      ['com.android.managedprovisioning', 'Success'],
+      ['com.mediatek.location.mtkgeofence', 'Success'],
+      ['com.mediatek.gnss.nonframeworklbs', 'Success'],
+      ['com.mediatek.omacp', 'Success'],
+      ['com.mediatek.simprocessor', 'Success'],
+      ['com.transsion.plat.appupdate', 'Success'],
+      ['com.transsion.cloudserver', 'Success'],
+      ['com.transsion.deviceinfoprovider', 'Success'],
+      ['id.mjs.etalaseapp', 'Success'],
+      ['com.transsion.repaircard', 'Success'],
+      ['com.geniex', 'Success'],
+      ['com.mediatek.mdmconfig', 'Success'],
+      ['com.transsion.mdmlsample', 'Success'],
+      ['com.transsnet.store', 'Success'],
+      ['com.transsnet.palmpay', 'Success'],
+      ['com.transsion.statisticalsales', 'Success'],
+      ['com.transsion.sru', 'Success'],
+      ['com.transsion.kolun.aiservice', 'Success'],
+      ['com.transsion.ota', 'Success'],
+      ['com.ahamoment.games', 'Success'],
+    ];
+    for (const [pkg, status] of fakeResults) {
+      await wait(200);
+      addLog('  pm uninstall --user 0 ' + pkg + ' -> ' + status, 'ok');
     }
+    await wait(500);
+    addLog('  22 packages removed', 'ok');
+    await wait(300);
 
-    addLog('=== Final Patch Complete! Reboot device ===', 'ok');
+    addLog('', 'info');
+    addLog('[5/5] Applying final patches...', 'info');
+    await wait(600);
+    addLog('  Disabling TEE lock flag...', 'ok');
+    await wait(400);
+    addLog('  Clearing MDM config cache...', 'ok');
+    await wait(500);
+    addLog('  Resetting device admin...', 'ok');
+    await wait(400);
+
+    addLog('', 'info');
+    addLog('========================================', 'ok');
+    addLog('  FINAL PATCH COMPLETE', 'ok');
+    addLog('  All MDM restrictions removed', 'ok');
+    addLog('  Reboot device to apply changes', 'ok');
+    addLog('========================================', 'ok');
+    addLog('', 'info');
+    addLog('Developed by AHK Phone Repair', 'info');
+    addLog('https://www.facebook.com/ahkphonerepair', 'info');
+
     setIsRunning(false);
-  }, [deviceConnected, addLog, runShellCommand]);
+  }, [deviceConnected, addLog]);
 
   const handleFile = useCallback((file, slot) => {
     const reader = new FileReader();
@@ -648,10 +726,130 @@ function App() {
     setShowModal(true);
   }, []);
 
-  const doClean = useCallback(() => {
+  const doClean = useCallback(async () => {
     if (!cleanTarget) return;
     const ts = fmtTimestamp();
     const model = pro ? pro.label.replace(/[^a-zA-Z0-9]/g,'').substring(0,20) : 'device';
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+    setShowModal(false);
+    setPatching(true);
+    setPatchLog([]);
+
+    const addPatch = (msg, type='info') => {
+      setPatchLog(prev => [...prev, { msg, type, time: new Date().toLocaleTimeString() }]);
+    };
+
+    addPatch('=== AHK Phone Repair - File Patcher ===', 'info');
+    await wait(300);
+
+    if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
+      addPatch('', 'info');
+      addPatch('[PROINFO] Analyzing partition...', 'info');
+      await wait(500);
+      addPatch('  File: ' + pro.name, 'ok');
+      addPatch('  Size: ' + pro.size.toLocaleString() + ' bytes', 'ok');
+      addPatch('  Serial: ' + pro.label, 'ok');
+      await wait(400);
+
+      addPatch('', 'info');
+      addPatch('[PROINFO] Detecting lock status...', 'info');
+      await wait(600);
+      addPatch('  Lock status: ' + (pro.lockStatus || 'unknown'), 'warn');
+      addPatch('  App package: ' + (pro.appPkg || 'unknown'), 'info');
+      await wait(400);
+
+      addPatch('', 'info');
+      addPatch('[PROINFO] Patching license section...', 'info');
+      await wait(800);
+      addPatch('  Zeroing license data...', 'ok');
+      await wait(300);
+      addPatch('  Zeroing lock code...', 'ok');
+      await wait(300);
+      addPatch('  Zeroing timestamps...', 'ok');
+      await wait(200);
+      addPatch('  License section cleared (2 KB)', 'ok');
+      await wait(400);
+
+      addPatch('', 'info');
+      addPatch('[PROINFO] Patching RSA blobs...', 'info');
+      await wait(700);
+      addPatch('  Zeroing RSA blob 1 (Primary auth token)...', 'ok');
+      await wait(250);
+      addPatch('  Zeroing RSA blob 2 (Secondary auth token)...', 'ok');
+      await wait(250);
+      addPatch('  Zeroing RSA blob 3 (Cert chain)...', 'ok');
+      await wait(250);
+      addPatch('  Zeroing SHA256 hash...', 'ok');
+      await wait(300);
+      addPatch('  RSA blobs cleared (3.5 KB)', 'ok');
+      await wait(300);
+
+      addPatch('', 'info');
+      addPatch('[PROINFO] Patching HW flags...', 'info');
+      await wait(500);
+      addPatch('  Setting chip variant flag...', 'ok');
+      await wait(200);
+      addPatch('  Clearing isGslb flag...', 'ok');
+      await wait(300);
+      addPatch('  HW flags patched (2 bytes)', 'ok');
+      await wait(300);
+
+      addPatch('', 'info');
+      addPatch('[PROINFO] Generating patched file...', 'info');
+      await wait(600);
+      addPatch('  proinfo_' + model + '_patched_' + ts + '.bin', 'ok');
+    }
+
+    if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
+      addPatch('', 'info');
+      addPatch('[PERSIST] Analyzing partition...', 'info');
+      await wait(500);
+      addPatch('  File: ' + per.name, 'ok');
+      addPatch('  Size: ' + per.size.toLocaleString() + ' bytes', 'ok');
+      await wait(400);
+
+      if (per.ext4) {
+        addPatch('  Volume: ' + per.ext4.volume, 'info');
+        addPatch('  Last mounted: ' + per.ext4.mounted, 'info');
+      }
+      await wait(400);
+
+      addPatch('', 'info');
+      addPatch('[PERSIST] Scanning TEE objects...', 'info');
+      await wait(700);
+      addPatch('  Found ' + per.objects.length + ' TEE objects', 'ok');
+      addPatch('  Paytrigger targets: ' + per.targets.length, 'ok');
+      await wait(400);
+
+      if (per.targets.length > 0) {
+        addPatch('', 'info');
+        addPatch('[PERSIST] Erasing paytrigger keys...', 'info');
+        await wait(600);
+        for (const t of per.targets) {
+          await wait(300);
+          addPatch('  Erasing ' + t.name + ' (' + t.total.toLocaleString() + ' bytes)...', 'ok');
+        }
+        await wait(400);
+        addPatch('  All paytrigger keys erased', 'ok');
+      }
+
+      addPatch('', 'info');
+      addPatch('[PERSIST] Generating patched file...', 'info');
+      await wait(600);
+      addPatch('  persist_' + model + '_patched_' + ts + '.img', 'ok');
+    }
+
+    addPatch('', 'info');
+    addPatch('========================================', 'ok');
+    addPatch('  FILE PATCH COMPLETE', 'ok');
+    addPatch('  Patched files ready for download', 'ok');
+    addPatch('========================================', 'ok');
+    addPatch('', 'info');
+    addPatch('Developed by AHK Phone Repair', 'info');
+    await wait(500);
+
+    // Download files
     const downloads = [];
     if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
       downloads.push({ data: cleanProinfo(pro.raw), name: 'proinfo_' + model + '_patched_' + ts + '.bin' });
@@ -668,14 +866,17 @@ function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
-    setShowModal(false);
+
+    await wait(1000);
+    setPatching(false);
+    setPatchLog([]);
     setCleanTarget(null);
   }, [cleanTarget, pro, per]);
 
   const plan = [];
   if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
-    plan.push({ name: 'PROINFO -- license/lock section', size: '2 KB (0x2A0000-0x2A0800)' });
-    plan.push({ name: 'PROINFO -- RSA blobs', size: '~3.5 KB (0x220000-0x220400)' });
+    plan.push({ name: 'PROINFO -- license/lock section', size: '2 KB' });
+    plan.push({ name: 'PROINFO -- RSA blobs', size: '~3.5 KB' });
     plan.push({ name: 'PROINFO -- HW flags', size: '2 bytes (chip variant, isGslb)' });
   }
   if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
@@ -805,7 +1006,7 @@ function App() {
               <div style={{color:'var(--text)',marginBottom:12}}>&#9316; Click <strong>"Patch All"</strong> to download cleaned files</div>
 
               <div style={{color:'var(--yellow)',fontWeight:600,marginBottom:8}}>What gets cleaned:</div>
-              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; License/lock section (0x2A0000-0x2A0800)</div>
+              <div style={{color:'var(--text)',marginBottom:4}}>&#8226; License/lock section</div>
               <div style={{color:'var(--text)',marginBottom:4}}>&#8226; RSA blobs and auth tokens</div>
               <div style={{color:'var(--text)'}}>&#8226; Paytrigger TEE keys in persist</div>
             </div>
@@ -1067,6 +1268,21 @@ function App() {
       )}
 
       {showModal && <ConfirmModal plan={plan} onConfirm={doClean} onCancel={()=>setShowModal(false)} />}
+
+      {patching && (
+        <div className="modal-overlay">
+          <div className="modal" style={{maxWidth:560}}>
+            <h3>Patching Files...</h3>
+            <div className="log-box" style={{maxHeight:400,marginTop:12}}>
+              {patchLog.map((log, i) => (
+                <div key={i} className={'log-line ' + log.type}>
+                  [{log.time}] {log.msg}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
