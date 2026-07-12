@@ -363,13 +363,21 @@ function parseProinfo(data) {
   const s = data.slice(0x2A0000, 0x2A0800);
   const g = (o, l) => readCstr(s, o, l);
 
+  // Helper: read uint32 from raw data at offset
+  const readU32 = (arr, off) => {
+    return arr[off] | (arr[off+1]<<8) | (arr[off+2]<<16) | (arr[off+3]<<24);
+  };
+
+  // Helper: Uint8Array to hex string
+  const toHexStr = (arr) => Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+
   // Hardware identity
-  const hwId = Array.from(data.slice(0x40, 0x52)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  const mfgTs = new DataView(data.buffer, data.byteOffset + 0x4C, 4).getUint32(0, true);
+  const hwId = toHexStr(data.slice(0x40, 0x52));
+  const mfgTs = readU32(data, 0x4C);
   const hwRev = readCstr(data, 0x2800FD, 16);
 
   // License block detail
-  const licCheck = new DataView(s.buffer, s.byteOffset + 0x0400, 4).getUint32(0, true);
+  const licCheck = readU32(s, 0x0400);
   const licFlag = s[0x040E];
   const skuPrefix = s.slice(0x0604, 0x0607).filter(b=>b!==0).map(b=>String.fromCharCode(b)).join('');
   const sku = readCstr(s, 0x060A, 32);
@@ -378,10 +386,10 @@ function parseProinfo(data) {
 
   // Provisioning
   const provBlob = s.slice(0x064F, 0x0656);
-  const provVal = provBlob.length >= 4 ? new DataView(provBlob.buffer, provBlob.byteOffset, 4).getUint32(0, true) : 0;
+  const provVal = provBlob.length >= 4 ? readU32(provBlob, 0) : 0;
   const provVer = s[0x0659];
   const provSep = String.fromCharCode(s[0x0661], s[0x0662]);
-  const provTs = new DataView(s.buffer, s.byteOffset + 0x0664, 4).getUint32(0, true);
+  const provTs = readU32(s, 0x0664);
   const buildPrefix = s[0x076C];
 
   // Hardware flags
@@ -395,7 +403,7 @@ function parseProinfo(data) {
   // Factory data
   const flagsRaw = Array.from(data.slice(0x280098, 0x28009E));
   const rsa2Head = Array.from(data.slice(0x220200, 0x22020C));
-  const rsa2Len = rsa2Head.length >= 10 ? new DataView(new Uint8Array(rsa2Head).buffer, 8, 2).getUint16(0, true) : 0;
+  const rsa2Len = rsa2Head.length >= 10 ? (rsa2Head[8] | (rsa2Head[9]<<8)) : 0;
 
   // RSA blobs
   const blobs = [
@@ -427,7 +435,7 @@ function parseProinfo(data) {
     hwId, hwRev, mfgTs: decodeTs(mfgTs),
     licCheck: licCheck ? '0x' + licCheck.toString(16).padStart(8,'0') : '',
     licFlag, skuPrefix, sku, secFlag, secCode,
-    provBlob: provBlob.length ? provBlob.hex() : '',
+    provBlob: provBlob.length ? toHexStr(provBlob) : '',
     provVal, provVer, provSep, provTs: decodeTs(provTs),
     buildPrefix: buildPrefix ? '0x' + buildPrefix.toString(16).padStart(2,'0') : '',
     chipVar: chipVar ? '0x' + chipVar.toString(16).padStart(2,'0') : '',
