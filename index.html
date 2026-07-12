@@ -362,6 +362,42 @@ function parseProinfo(data) {
   if (data.length < 0x2A0800) return null;
   const s = data.slice(0x2A0000, 0x2A0800);
   const g = (o, l) => readCstr(s, o, l);
+
+  // Hardware identity
+  const hwId = Array.from(data.slice(0x40, 0x52)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const mfgTs = new DataView(data.buffer, data.byteOffset + 0x4C, 4).getUint32(0, true);
+  const hwRev = readCstr(data, 0x2800FD, 16);
+
+  // License block detail
+  const licCheck = new DataView(s.buffer, s.byteOffset + 0x0400, 4).getUint32(0, true);
+  const licFlag = s[0x040E];
+  const skuPrefix = s.slice(0x0604, 0x0607).filter(b=>b!==0).map(b=>String.fromCharCode(b)).join('');
+  const sku = readCstr(s, 0x060A, 32);
+  const secFlag = s[0x0637];
+  const secCode = readCstr(s, 0x0627, 32);
+
+  // Provisioning
+  const provBlob = s.slice(0x064F, 0x0656);
+  const provVal = provBlob.length >= 4 ? new DataView(provBlob.buffer, provBlob.byteOffset, 4).getUint32(0, true) : 0;
+  const provVer = s[0x0659];
+  const provSep = String.fromCharCode(s[0x0661], s[0x0662]);
+  const provTs = new DataView(s.buffer, s.byteOffset + 0x0664, 4).getUint32(0, true);
+  const buildPrefix = s[0x076C];
+
+  // Hardware flags
+  const hwCfg1 = Array.from(data.slice(0x2C00A4, 0x2C00B0));
+  const chipVar = data[0x2C0010];
+  const featureCount = data[0x2C008D];
+  const memConfig = data[0x2C00DC];
+  const procCfg = data.slice(0x2C0090, 0x2C0092);
+  const extraFlags = data.slice(0x2C010E, 0x2C0110);
+
+  // Factory data
+  const flagsRaw = Array.from(data.slice(0x280098, 0x28009E));
+  const rsa2Head = Array.from(data.slice(0x220200, 0x22020C));
+  const rsa2Len = rsa2Head.length >= 10 ? new DataView(new Uint8Array(rsa2Head).buffer, 8, 2).getUint16(0, true) : 0;
+
+  // RSA blobs
   const blobs = [
     [0x220004,"RSA blob 1","Primary auth token"],
     [0x22020c,"RSA blob 2","Secondary auth token"],
@@ -371,6 +407,7 @@ function parseProinfo(data) {
     const c = readCstr(data, o, 512);
     return { offset:o, name:n, role:r, size: c.length>8 ? Math.floor(c.length*3/4) : 0 };
   }).filter(b => b.size > 0);
+
   const entries = [];
   for (let i = 0; i < 30; i++) {
     const eo = 0x100000+i*0x20, ch = data.slice(eo, eo+0x20);
@@ -380,12 +417,27 @@ function parseProinfo(data) {
     if (ts===0 && !tag) continue;
     entries.push({ idx:ch[4], tag, ts, dt: decodeTs(ts), offset:eo });
   }
+
   return {
     label: readCstr(data,0,16), lockCode:g(0x0004), tsStart:g(0x0010),
     lockStatus:g(0x0020), tsExpiry:g(0x0048), grace:g(0x009a), retry:g(0x00a2),
     validity:g(0x00ac), regionId:g(0x00b4), appPkg:g(0x00de), appClass:g(0x0106),
     appVer:g(0x014e), internalId:g(0x0617), buildHash:g(0x076d), blobs, entries,
     size: data.length,
+    hwId, hwRev, mfgTs: decodeTs(mfgTs),
+    licCheck: licCheck ? '0x' + licCheck.toString(16).padStart(8,'0') : '',
+    licFlag, skuPrefix, sku, secFlag, secCode,
+    provBlob: provBlob.length ? provBlob.hex() : '',
+    provVal, provVer, provSep, provTs: decodeTs(provTs),
+    buildPrefix: buildPrefix ? '0x' + buildPrefix.toString(16).padStart(2,'0') : '',
+    chipVar: chipVar ? '0x' + chipVar.toString(16).padStart(2,'0') : '',
+    hwCfg1: hwCfg1.some(b=>b) ? hwCfg1 : [],
+    featureCount, memConfig: memConfig ? memConfig + ' GB + 256 GB' : '',
+    procCfg: procCfg.some(b=>b) ? String.fromCharCode(procCfg[0]) + procCfg[1] : '',
+    extraFlags: extraFlags.some(b=>b) ? Array.from(extraFlags).map(b=>b.toString(16).padStart(2,'0')).join(' ') : '',
+    flagsRaw: flagsRaw.some(b=>b) ? flagsRaw.map(b=>b.toString(16).padStart(2,'0')).join('') : '',
+    rsa2Head: rsa2Head.some(b=>b) ? rsa2Head.map(b=>b.toString(16).padStart(2,'0')).join('') : '',
+    rsa2Len,
   };
 }
 
@@ -1109,36 +1161,83 @@ function App() {
           {pro && (
             <React.Fragment>
               <Section title="PROINFO - File Overview" icon="&#128203;">
-                <KV label="Device serial" value={pro.label} />
+                <KV label="File type" value="Android PROINFO partition image (binary)" />
                 <KV label="File size" value={pro.size.toLocaleString() + ' bytes (' + (pro.size/1024/1024).toFixed(1) + ' MB)'} />
+                <KV label="Device serial" value={pro.label} />
+                <KV label="Partition purpose" value="Stores provisioning, SIM, IMEI &amp; app lock data" />
                 <div className="btn-row" style={{marginTop:10}}>
                   <button className="btn btn-danger" onClick={()=>handleClean('proinfo')}>Patch PROINFO Only</button>
                 </div>
               </Section>
-              <Section title="PROINFO - App &amp; License Info" icon="&#128272;">
+
+              <Section title="Hardware Identity" icon="&#128187;">
+                <KV label="Hardware unique ID" value={pro.hwId || '(not set)'} />
+                <KV label="Manufacturing date" value={pro.mfgTs ? fmtDate(pro.mfgTs) : '(not set)'} />
+                <KV label="Hardware revision" value={pro.hwRev || '(not set)'} />
+              </Section>
+
+              <Section title="App &amp; License Info" icon="&#128272;">
                 <KV label="App package" value={pro.appPkg} />
                 <KV label="App class" value={pro.appClass} />
                 <KV label="App version" value={pro.appVer} />
                 <KV label="Lock status" value={lockLabel(pro.lockStatus).text} cls={lockLabel(pro.lockStatus).cls} />
                 <KV label="Lock type" value={pro.lockCode} />
+                <KV label="License integrity" value={pro.licCheck || '(not set)'} />
+                <KV label="SKU prefix" value={pro.skuPrefix || '(not set)'} />
+                <KV label="SKU / model code" value={pro.sku || '(not set)'} />
+                <KV label="Secondary flag" value={pro.secFlag ? '0x' + pro.secFlag.toString(16).padStart(2,'0') : '(not set)'} />
+                <KV label="Secondary code" value={pro.secCode || '(not set)'} />
                 <KV label="Region / sub-ID" value={pro.regionId} />
                 <KV label="Internal ID" value={pro.internalId} />
                 <KV label="Build fingerprint" value={pro.buildHash} />
               </Section>
-              <Section title="PROINFO - License / Expiry Timestamps" icon="&#9200;">
+
+              <Section title="Provisioning Data" icon="&#128273;" defaultOpen={false}>
+                <KV label="Provisioning nonce" value={pro.provBlob || '(not set)'} />
+                <KV label="LE32 value" value={pro.provVal || '(not set)'} />
+                <KV label="Provisioning ver" value={pro.provVer || '(not set)'} />
+                <KV label="Timestamp separator" value={pro.provSep || '(not set)'} />
+                <KV label="Provisioning TS" value={pro.provTs ? fmtDate(pro.provTs) : '(not set)'} />
+                <KV label="Build hash prefix" value={pro.buildPrefix || '(not set)'} />
+              </Section>
+
+              <Section title="License / Expiry Timestamps" icon="&#9200;">
                 <KV label="License start" value={fmtDate(decodeTs(pro.tsStart))} />
                 <KV label="License expiry" value={expiryLabel(pro.tsExpiry).text} cls={expiryLabel(pro.tsExpiry).cls} />
                 <KV label="Grace period" value={pro.grace} />
                 <KV label="Retry interval" value={pro.retry} />
                 <KV label="Validity" value={pro.validity} />
               </Section>
+
+              <Section title="Hardware Flags" icon="&#128295;" defaultOpen={false}>
+                <KV label="Chip variant" value={pro.chipVar || '(not set)'} />
+                <KV label="Feature count" value={pro.featureCount || '(not set)'} />
+                <KV label="Memory config" value={pro.memConfig || '(not set)'} />
+                <KV label="Processor config" value={pro.procCfg || '(not set)'} />
+                <KV label="Extra flags" value={pro.extraFlags || '(not set)'} />
+                {pro.hwCfg1.length > 0 && (
+                  <React.Fragment>
+                    <KV label="HW config flags" value="Present" />
+                    <KV label="  disFlag (display)" value={pro.hwCfg1[5] ? 'true' : 'false'} />
+                    <KV label="  isGslb (network)" value={pro.hwCfg1[6] ? 'true' : 'false'} />
+                    <KV label="  iNP (provision)" value={pro.hwCfg1[7] ? 'true' : 'false'} />
+                  </React.Fragment>
+                )}
+              </Section>
+
+              <Section title="Factory Data" icon="&#127981;" defaultOpen={false}>
+                <KV label="Factory flags" value={pro.flagsRaw || '(not set)'} />
+                <KV label="RSA blob 2 header" value={pro.rsa2Head || '(not set)'} />
+                <KV label="RSA blob 2 length" value={pro.rsa2Len ? pro.rsa2Len + ' bytes' : '(not set)'} />
+              </Section>
+
               {pro.blobs.length > 0 && (
-                <Section title="PROINFO - RSA Blobs / Certificates" icon="&#128273;" defaultOpen={false}>
+                <Section title="RSA Blobs / Certificates" icon="&#128273;" defaultOpen={false}>
                   {pro.blobs.map((b,i) => <div key={i}><KV label={b.name} value={b.role + ' -- ' + b.size + ' bytes'} /></div>)}
                 </Section>
               )}
               {pro.entries.length > 0 && (
-                <Section title="PROINFO - Partition Entry Log" icon="&#128221;" defaultOpen={false}>
+                <Section title="Partition Entry Log" icon="&#128221;" defaultOpen={false}>
                   <table className="summary-table">
                     <thead><tr><th>#</th><th>Tag</th><th>Written</th></tr></thead>
                     <tbody>{pro.entries.map((e,i) => (
@@ -1147,7 +1246,7 @@ function App() {
                   </table>
                 </Section>
               )}
-              <Section title="PROINFO - License Section Hex" icon="&#128187;" defaultOpen={false}>
+              <Section title="License Section Hex" icon="&#128187;" defaultOpen={false}>
                 <HexDump data={pro.raw} offset={0x2A0000} limit={256} />
               </Section>
             </React.Fragment>
