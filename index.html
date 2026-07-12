@@ -452,7 +452,6 @@ function HexDump({ data, offset=0, limit=96 }) {
     <div className="hex-dump">
       {toHex(data,offset,limit).map((l,i) => (
         <div key={i} className="hex-line">
-          <span className="hex-addr">{l.addr}</span>
           <span className="hex-bytes">{l.hex}</span>
           <span className="hex-ascii">{l.asc}</span>
         </div>
@@ -698,14 +697,29 @@ function App() {
     setIsRunning(false);
   }, [deviceConnected, addLog]);
 
+  const [wrongFileType, setWrongFileType] = useState(null);
+
   const handleFile = useCallback((file, slot) => {
     const reader = new FileReader();
     reader.onload = () => {
       const data = new Uint8Array(reader.result);
       const type = detectType(data);
+
+      if (slot === 'proinfo' && type !== 'proinfo') {
+        setWrongFileType('This is not a PROINFO file. Please upload a valid proinfo.bin.');
+        setTimeout(() => setWrongFileType(null), 4000);
+        return;
+      }
+      if (slot === 'persist' && type !== 'persist') {
+        setWrongFileType('This is not a PERSIST file. Please upload a valid persist.img.');
+        setTimeout(() => setWrongFileType(null), 4000);
+        return;
+      }
+
       const entry = { name: file.name, data, type, size: data.length };
       if (slot === 'proinfo') setProFile(entry);
       else setPerFile(entry);
+      setWrongFileType(null);
     };
     reader.readAsArrayBuffer(file);
   }, []);
@@ -909,6 +923,15 @@ function App() {
       {/* Upload list - only on Step 1 tab */}
       {activeTab==='step1' && (
         <div className="upload-list">
+          {wrongFileType && (
+            <div className="error-banner">
+              <span className="eicon">&#128683;</span>
+              <div className="emsg">
+                <strong>Wrong File Type</strong>
+                <div className="edetail">{wrongFileType}</div>
+              </div>
+            </div>
+          )}
           <div
             className={'upload-row ' + (pro ? 'loaded' : '')}
             onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add('dragover');}}
@@ -1083,6 +1106,9 @@ function App() {
               <Section title="PROINFO - File Overview" icon="&#128203;">
                 <KV label="Device serial" value={pro.label} />
                 <KV label="File size" value={pro.size.toLocaleString() + ' bytes (' + (pro.size/1024/1024).toFixed(1) + ' MB)'} />
+                <div className="btn-row" style={{marginTop:10}}>
+                  <button className="btn btn-danger" onClick={()=>handleClean('proinfo')}>Patch PROINFO Only</button>
+                </div>
               </Section>
               <Section title="PROINFO - App &amp; License Info" icon="&#128272;">
                 <KV label="App package" value={pro.appPkg} />
@@ -1109,9 +1135,9 @@ function App() {
               {pro.entries.length > 0 && (
                 <Section title="PROINFO - Partition Entry Log" icon="&#128221;" defaultOpen={false}>
                   <table className="summary-table">
-                    <thead><tr><th>#</th><th>Tag</th><th>Offset</th><th>Written</th></tr></thead>
+                    <thead><tr><th>#</th><th>Tag</th><th>Written</th></tr></thead>
                     <tbody>{pro.entries.map((e,i) => (
-                      <tr key={i}><td>{e.idx}</td><td>{e.tag}</td><td>0x{e.offset.toString(16).toUpperCase()}</td><td>{e.dt?e.dt.toLocaleDateString():'\u2014'}</td></tr>
+                      <tr key={i}><td>{e.idx}</td><td>{e.tag}</td><td>{e.dt?e.dt.toLocaleDateString():'\u2014'}</td></tr>
                     ))}</tbody>
                   </table>
                 </Section>
@@ -1128,6 +1154,9 @@ function App() {
                 <Section title="PERSIST - EXT4 Filesystem" icon="&#128190;">
                   <KV label="Volume name" value={per.ext4.volume} />
                   <KV label="Last mounted" value={per.ext4.mounted} />
+                  <div className="btn-row" style={{marginTop:10}}>
+                    <button className="btn btn-danger" onClick={()=>handleClean('persist')}>Patch PERSIST Only</button>
+                  </div>
                 </Section>
               )}
               {per.objects.length > 0 && (
@@ -1137,7 +1166,6 @@ function App() {
                     return (
                       <div key={i} style={{marginBottom:14,padding:12,background:isT?'rgba(255,107,107,0.08)':'var(--bg)',borderRadius:8}}>
                         <KV label="Name" value={obj.name} cls={isT?'expired':''} />
-                        <KV label="Offset" value={'0x' + obj.offset.toString(16).toUpperCase()} />
                         <KV label="Payload" value={obj.plen + ' bytes'} />
                         <details>
                           <summary style={{cursor:'pointer',color:'var(--cyan)',fontSize:'0.8rem',marginTop:6}}>Header hex</summary>
@@ -1156,9 +1184,9 @@ function App() {
               {per.targets.length > 0 && (
                 <Section title="PERSIST - Paytrigger Keys" icon="&#128202;">
                   <table className="summary-table">
-                    <thead><tr><th>Name</th><th>Offset</th><th>Size</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Size</th></tr></thead>
                     <tbody>{per.targets.map((t,i) => (
-                      <tr key={i}><td>{t.name}</td><td>0x{t.offset.toString(16).toUpperCase()}</td><td>{t.total.toLocaleString()} B</td></tr>
+                      <tr key={i}><td>{t.name}</td><td>{t.total.toLocaleString()} B</td></tr>
                     ))}</tbody>
                   </table>
                 </Section>
