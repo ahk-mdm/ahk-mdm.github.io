@@ -570,6 +570,8 @@ function App() {
   const [webUsbSupported, setWebUsbSupported] = useState(true);
   const [patchLog, setPatchLog] = useState([]);
   const [patching, setPatching] = useState(false);
+  const [patchComplete, setPatchComplete] = useState(false);
+  const [patchFiles, setPatchFiles] = useState([]);
   const logRef = useRef(null);
   const patchLogRef = useRef(null);
   const adbRef = useRef(null);
@@ -845,11 +847,11 @@ function App() {
       addPatch('', 'info');
       addPatch('[PROINFO] Patching license section...', 'info');
       await wait(800);
-      addPatch('  Zeroing license data...', 'ok');
+      addPatch('  Patching license data...', 'ok');
       await wait(300);
-      addPatch('  Zeroing lock code...', 'ok');
+      addPatch('  Patching lock code...', 'ok');
       await wait(300);
-      addPatch('  Zeroing timestamps...', 'ok');
+      addPatch('  Patching timestamps...', 'ok');
       await wait(200);
       addPatch('  License section cleared (2 KB)', 'ok');
       await wait(400);
@@ -857,13 +859,13 @@ function App() {
       addPatch('', 'info');
       addPatch('[PROINFO] Patching RSA blobs...', 'info');
       await wait(700);
-      addPatch('  Zeroing RSA blob 1 (Primary auth token)...', 'ok');
+      addPatch('  Patching RSA blob 1 (Primary auth token)...', 'ok');
       await wait(250);
-      addPatch('  Zeroing RSA blob 2 (Secondary auth token)...', 'ok');
+      addPatch('  Patching RSA blob 2 (Secondary auth token)...', 'ok');
       await wait(250);
-      addPatch('  Zeroing RSA blob 3 (Cert chain)...', 'ok');
+      addPatch('  Patching RSA blob 3 (Cert chain)...', 'ok');
       await wait(250);
-      addPatch('  Zeroing SHA256 hash...', 'ok');
+      addPatch('  Patching SHA256 hash...', 'ok');
       await wait(300);
       addPatch('  RSA blobs cleared (3.5 KB)', 'ok');
       await wait(300);
@@ -923,37 +925,23 @@ function App() {
       addPatch('  persist_' + model + '_patched_' + ts + '.img', 'ok');
     }
 
-    addPatch('', 'info');
     addPatch('========================================', 'ok');
     addPatch('  FILE PATCH COMPLETE', 'ok');
-    addPatch('  Patched files ready for download', 'ok');
+    addPatch('  Click Download button below', 'ok');
     addPatch('========================================', 'ok');
     addPatch('', 'info');
     addPatch('Developed by AHK Phone Repair', 'info');
-    await wait(500);
 
-    // Download files
-    const downloads = [];
+    // Store files for download
+    const files = [];
     if ((cleanTarget === 'proinfo' || cleanTarget === 'all') && pro) {
-      downloads.push({ data: cleanProinfo(pro.raw), name: 'proinfo_' + model + '_patched_' + ts + '.bin' });
+      files.push({ data: cleanProinfo(pro.raw), name: 'proinfo_' + model + '_patched_' + ts + '.bin' });
     }
     if ((cleanTarget === 'persist' || cleanTarget === 'all') && per) {
-      downloads.push({ data: cleanPersist(per.raw, per.targets), name: 'persist_' + model + '_patched_' + ts + '.img' });
+      files.push({ data: cleanPersist(per.raw, per.targets), name: 'persist_' + model + '_patched_' + ts + '.img' });
     }
-    for (const d of downloads) {
-      const blob = new Blob([d.data], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = d.name;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    await wait(1000);
-    setPatching(false);
-    setPatchLog([]);
-    setCleanTarget(null);
+    setPatchFiles(files);
+    setPatchComplete(true);
   }, [cleanTarget, pro, per]);
 
   const plan = [];
@@ -1406,7 +1394,7 @@ function App() {
       {patching && (
         <div className="modal-overlay">
           <div className="modal" style={{maxWidth:560}}>
-            <h3>Patching Files...</h3>
+            <h3>{patchComplete ? 'Patch Complete' : 'Patching Files...'}</h3>
             <div className="log-box" style={{maxHeight:400,marginTop:12}} ref={patchLogRef}>
               {patchLog.map((log, i) => (
                 <div key={i} className={'log-line ' + log.type}>
@@ -1414,6 +1402,30 @@ function App() {
                 </div>
               ))}
             </div>
+            {patchComplete && (
+              <div className="btn-row" style={{marginTop:16,justifyContent:'center'}}>
+                {patchFiles.map((f, i) => (
+                  <button key={i} className="btn btn-success" onClick={() => {
+                    const blob = new Blob([f.data], { type: 'application/octet-stream' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = f.name;
+                    document.body.appendChild(a); a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}>
+                    Download {f.name}
+                  </button>
+                ))}
+                <button className="btn btn-outline" onClick={() => {
+                  setPatching(false);
+                  setPatchComplete(false);
+                  setPatchLog([]);
+                  setPatchFiles([]);
+                  setCleanTarget(null);
+                }}>Close</button>
+              </div>
+            )}
           </div>
         </div>
       )}
